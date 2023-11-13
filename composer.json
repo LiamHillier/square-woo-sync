@@ -1,0 +1,20 @@
+{
+    "name": "pixeldev/sws",
+    "description": "Sync products between square and woocommerce",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Pixeldev\\SWS\\": "includes/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Pixeldev",
+            "email": "liam@pixeldev.com.au"
+        }
+    ],
+    "require": {
+        "square/square": "32.0.0.20231018"
+    }
+}

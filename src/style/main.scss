@@ -1,0 +1,46 @@
+#wpcontent {
+  padding-left: 0 !important;
+}
+
+#square-woo-sync {
+  @apply bg-gray-100;
+  height: calc(100vh - 100px);
+  header {
+    width: calc(100% - 160px);
+    @apply z-50;
+  }
+}
+
+@media (max-width: 960px) {
+  #square-woo-sync {
+    header {
+      width: calc(100% - 36px);
+    }
+  }
+}
+
+@media (max-width: 982px) {
+  #square-woo-sync {
+    header {
+      width: 100%;
+      top: 46px;
+    }
+  }
+}
+
+.toplevel_page_square-woo-sync {
+  #wpfooter {
+    @apply hidden;
+  }
+
+  #wpbody-content {
+    @apply pb-0;
+  }
+}
+
+#adminmenu div.wp-menu-image {
+  display: flex;
+  justify-content: center;
+  padding: 4px !important;
+  padding-top: 0px !important;
+}
