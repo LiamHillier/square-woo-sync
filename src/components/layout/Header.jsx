@@ -23,7 +23,7 @@ const navigation = [
   { name: "Dashboard", href: "/", current: true },
   { name: "Inventory", href: "/inventory", current: false },
   { name: "Documentation", href: "/documentation", current: false },
-  { name: "Settings", href: "/settings", current: false },
+  { name: "Settings", href: "/settings/general", current: false },
 ];
 
 export default function Header() {
@@ -31,7 +31,7 @@ export default function Header() {
     <header className="fixed top-0 top-[32px]">
       <Disclosure as="nav" className="bg-gray-800 w-full">
         {({ open }) => (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex h-16 justify-between">
+          <div className=" mx-auto px-4 sm:px-6 lg:px-8 flex h-16 justify-between">
             <div className="flex">
               <div className="-ml-2 mr-2 flex items-center md:hidden">
                 <Disclosure.Button className="relative inline-flex items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">

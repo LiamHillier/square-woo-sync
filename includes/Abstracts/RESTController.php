@@ -30,7 +30,7 @@ abstract class RESTController extends WP_REST_Controller {
     public function check_permission(): bool {
         return true;
         // phpcs:disable Squiz.PHP.CommentedOutCode.Found
-        // return current_user_can( 'manage_jobs' );
+        return current_user_can( 'manage_options' );
         //phpcs:enable
     }
 

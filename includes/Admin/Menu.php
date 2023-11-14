@@ -38,7 +38,7 @@ class Menu {
         if ( current_user_can( $capability ) ) {
             $submenu[ $slug ][] = [ esc_attr__( 'Dashboard', 'square-woo-sync' ), $capability, 'admin.php?page=' . $slug . '#/' ];
             $submenu[ $slug ][] = [ esc_attr__( 'Inventory', 'square-woo-sync' ), $capability, 'admin.php?page=' . $slug . '#/inventory' ]; 
-            $submenu[ $slug ][] = [ esc_attr__( 'Settings', 'square-woo-sync' ), $capability, 'admin.php?page=' . $slug . '#/settings' ]; 
+            $submenu[ $slug ][] = [ esc_attr__( 'Settings', 'square-woo-sync' ), $capability, 'admin.php?page=' . $slug . '#/settings/general' ]; 
         }
 
     }

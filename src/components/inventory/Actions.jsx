@@ -24,33 +24,19 @@ const actions = [
     iconBackground: "bg-purple-50",
   },
   {
+    title: "Product Matcher",
+    href: "#",
+    icon: ReceiptRefundIcon,
+    iconForeground: "text-rose-700",
+    iconBackground: "bg-rose-50",
+  },
+  {
     title: "Documentation",
     href: "#",
     icon: AcademicCapIcon,
     iconForeground: "text-sky-700",
     iconBackground: "bg-sky-50",
   },
-  {
-    title: "Request help",
-    href: "#",
-    icon: HandRaisedIcon,
-    iconForeground: "text-yellow-700",
-    iconBackground: "bg-yellow-50",
-  },
-  //   {
-  //     title: "Submit an expense",
-  //     href: "#",
-  //     icon: ReceiptRefundIcon,
-  //     iconForeground: "text-rose-700",
-  //     iconBackground: "bg-rose-50",
-  //   },
-  //   {
-  //     title: "Training",
-  //     href: "#",
-  //     icon: AcademicCapIcon,
-  //     iconForeground: "text-indigo-700",
-  //     iconBackground: "bg-indigo-50",
-  //   },
 ];
 
 function classNames(...classes) {

@@ -152,7 +152,7 @@ export default function Dashboard() {
       <div className="relative isolate overflow-hidden pt-16">
         {/* Secondary navigation */}
         <header className="pb-4 pt-6 sm:pb-6">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-6 px-4 sm:flex-nowrap sm:px-6 lg:px-8">
+          <div className="mx-auto flex  flex-wrap items-center gap-6 px-4 sm:flex-nowrap sm:px-6 lg:px-8">
             <h1 className="text-base font-semibold leading-7 text-gray-900">
               Cashflow
             </h1>
@@ -179,7 +179,7 @@ export default function Dashboard() {
 
         {/* Stats */}
         <div className="border-b border-b-gray-900/10 lg:border-t lg:border-t-gray-900/5">
-          <dl className="mx-auto grid max-w-7xl grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 lg:px-2 xl:px-0">
+          <dl className="mx-auto grid  grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 lg:px-2 xl:px-0">
             {stats.map((stat, statIdx) => (
               <div
                 key={stat.name}
@@ -230,13 +230,13 @@ export default function Dashboard() {
       <div className="space-y-16 py-16 xl:space-y-20">
         {/* Recent activity table */}
         <div>
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto  px-4 sm:px-6 lg:px-8">
             <h2 className="mx-auto max-w-2xl text-base font-semibold leading-6 text-gray-900 lg:mx-0 lg:max-w-none">
               Recent activity
             </h2>
           </div>
           <div className="mt-6 overflow-hidden border-t border-gray-100">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="mx-auto  px-4 sm:px-6 lg:px-8">
               <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
                 <table className="w-full text-left">
                   <thead className="sr-only">
@@ -336,7 +336,7 @@ export default function Dashboard() {
         </div>
 
         {/* Recent client list*/}
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto  px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold leading-7 text-gray-900">
