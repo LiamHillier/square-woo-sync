@@ -96,7 +96,8 @@ class SettingsController extends RESTController
         $squareHelper = new SquareHelper($token);
 
         if (!$squareHelper->isTokenValid()) {
-            return new WP_Error('invalid_token', 'The provided token is invalid', ['status' => 400]);
+            $error_data = ['message' => 'The provided token is invalid', 'status' => 400];
+            return rest_ensure_response($error_data, 400);
         }
 
         $encryptedToken = $squareHelper->encrypt_access_token($token);
@@ -104,7 +105,7 @@ class SettingsController extends RESTController
         $settings['access_token'] = $encryptedToken;
         update_option('sws_settings', $settings);
 
-        return rest_ensure_response(['message' => 'Access token updated successfully']);
+        return rest_ensure_response(['message' => 'Access token updated successfully', 'status' => 200]);
     }
 
     // Delete the access token

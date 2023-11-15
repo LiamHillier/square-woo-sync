@@ -70,17 +70,28 @@ export default function AccessToken() {
       method: "POST",
       data: { access_token: accessToken },
     })
-      .then(() => {
+      .then((res) => {
         setAccessToken("");
-        getToken({ silent: true }); // Re-fetch the token
-        toast.update(id, {
-          render: "Access token updated.",
-          type: "success",
-          isLoading: false,
-          autoClose: 2000,
-          hideProgressBar: false,
-          closeOnClick: true,
-        });
+        if (res.status === 200) {
+          getToken({ silent: true }); // Re-fetch the token
+          toast.update(id, {
+            render: "Access token updated.",
+            type: "success",
+            isLoading: false,
+            autoClose: 2000,
+            hideProgressBar: false,
+            closeOnClick: true,
+          });
+        } else {
+          setExistingToken(null);
+          toast.update(id, {
+            render: res.message,
+            type: "error",
+            isLoading: false,
+            autoClose: false,
+            closeOnClick: true,
+          });
+        }
       })
       .catch((err) => {
         setAccessToken("");
