@@ -56,5 +56,19 @@ class SquareHelper
         return openssl_decrypt($encrypted_data, 'aes-256-cbc', $this->encryptionKey, 0, $iv);
     }
 
+
+    public function get_access_token()
+    {
+        $settings = get_option('sws_settings', []);
+        $token = isset($settings['access_token']) ? $settings['access_token'] : null;
+
+        if ($token) {
+            $decryptedToken = $this->decrypt_access_token($token);
+            return $decryptedToken;
+        }
+
+        return null;
+    }
+
     // Other Square-related methods can be added here
 }

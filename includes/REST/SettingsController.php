@@ -83,10 +83,10 @@ class SettingsController extends RESTController
             $squareHelper = new SquareHelper($token);
             $decryptedToken = $squareHelper->decrypt_access_token($token);
             $maskedToken = substr($decryptedToken, 0, 3) . '...' . substr($decryptedToken, -3);
-            return rest_ensure_response(['access_token' => $maskedToken]);
+            return rest_ensure_response(['access_token' => $maskedToken, 'status' => 200]);
         }
 
-        return rest_ensure_response(['access_token' => 'Token not set or empty']);
+        return rest_ensure_response(['access_token' => 'Token not set or empty', 'status' => 400]);
     }
 
     // Set a new access token

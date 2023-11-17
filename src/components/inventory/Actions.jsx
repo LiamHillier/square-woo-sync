@@ -1,3 +1,4 @@
+import { useState } from "@wordpress/element";
 import {
   AcademicCapIcon,
   BanknotesIcon,
@@ -7,45 +8,42 @@ import {
   ReceiptRefundIcon,
   UsersIcon,
 } from "@heroicons/react/24/outline";
+import { Dialog } from "@headlessui/react";
+
+import SquareWoo from "./Actions/SquareWoo";
+import { classNames } from "../../utils/classHelper";
 
 const actions = [
   {
     title: "Sync Square to Woo",
-    href: "#",
     icon: ClockIcon,
     iconForeground: "text-teal-700",
     iconBackground: "bg-teal-50",
+    dialog: SquareWoo,
   },
   {
     title: "Sync Woo to Square",
-    href: "#",
     icon: CheckBadgeIcon,
     iconForeground: "text-purple-700",
     iconBackground: "bg-purple-50",
   },
   {
     title: "Product Matcher",
-    href: "#",
     icon: ReceiptRefundIcon,
     iconForeground: "text-rose-700",
     iconBackground: "bg-rose-50",
   },
   {
     title: "Documentation",
-    href: "#",
     icon: AcademicCapIcon,
     iconForeground: "text-sky-700",
     iconBackground: "bg-sky-50",
   },
 ];
 
-function classNames(...classes) {
-  return classes.filter(Boolean).join(" ");
-}
-
 export default function Actions() {
   return (
-    <div className="divide-y divide-gray-200 overflow-hidden rounded-lg bg-gray-200 shadow-lg sm:grid sm:grid-cols-2 sm:gap-px sm:divide-y-0">
+    <div className="divide-y divide-gray-200 overflow-hidden rounded-lg bg-gray-200 shadow-lg sm:grid sm:grid-cols-2 sm:gap-px sm:divide-y-0 relative">
       {actions.map((action, actionIdx) => (
         <div
           key={action.title}
@@ -74,11 +72,9 @@ export default function Actions() {
           </div>
           <div className="mt-8">
             <h3 className="text-base font-semibold leading-6 text-gray-900">
-              <a href={action.href} className="focus:outline-none">
-                {/* Extend touch target to entire panel */}
-                <span className="absolute inset-0" aria-hidden="true" />
-                {action.title}
-              </a>
+              {/* Extend touch target to entire panel */}
+              <span className="absolute inset-0" aria-hidden="true" />
+              {action.title}
             </h3>
             <p className="mt-2 text-sm text-gray-500">
               Doloribus dolores nostrum quia qui natus officia quod et dolorem.

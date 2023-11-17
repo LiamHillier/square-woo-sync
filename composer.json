@@ -5,7 +5,8 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Pixeldev\\SWS\\": "includes/"
+            "Pixeldev\\SWS\\": "includes/",
+            "WooCommerce\\": "wp-content/plugins/woocommerce/includes/"
         }
     },
     "authors": [

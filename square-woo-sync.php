@@ -255,6 +255,8 @@ final class SWS
     public function init_classes()
     {
         // Init necessary hooks
+        // $squareWooSync = new Pixeldev\SWS\Square\SquareImport();
+        // $squareWooSync->import_products();
         //  new Pixeldev\SWS\User\Hooks();
     }
 
@@ -356,5 +358,3 @@ add_action('admin_notices', 'your_plugin_activation_notice');
 
 
 sws();
-
-
