@@ -9,7 +9,8 @@ namespace Pixeldev\SWS\REST;
  *
  * @since 0.3.0
  */
-class Api {
+class Api
+{
 
     /**
      * Class dir and class name mapping.
@@ -23,8 +24,9 @@ class Api {
     /**
      * Constructor.
      */
-    public function __construct() {
-        if ( ! class_exists( 'WP_REST_Server' ) ) {
+    public function __construct()
+    {
+        if (!class_exists('WP_REST_Server')) {
             return;
         }
 
@@ -32,11 +34,12 @@ class Api {
             'sws_rest_api_class_map',
             [
                 \Pixeldev\SWS\REST\SettingsController::class,
+                \Pixeldev\SWS\REST\SquareController::class,
             ]
         );
 
         // Init REST API routes.
-        add_action( 'rest_api_init', array( $this, 'register_rest_routes' ), 10 );
+        add_action('rest_api_init', array($this, 'register_rest_routes'), 10);
     }
 
     /**
@@ -46,8 +49,9 @@ class Api {
      *
      * @return void
      */
-    public function register_rest_routes(): void {
-        foreach ( $this->class_map as $controller ) {
+    public function register_rest_routes(): void
+    {
+        foreach ($this->class_map as $controller) {
             $this->$controller = new $controller();
             $this->$controller->register_routes();
         }

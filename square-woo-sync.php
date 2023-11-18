@@ -344,7 +344,7 @@ function your_plugin_activation_notice()
     }
 
     if (!empty($missing_extensions)) {
-        deactivate_plugins(plugin_basename(__FILE__));
+        // deactivate_plugins(plugin_basename(__FILE__));
         // Display a notice about missing extensions using the admin_notices hook
         $notice = '<div class="notice notice-error is-dismissible">';
         $notice .= '<p>Square Woo Sync requires the following PHP extensions, which are not enabled:</p><p><strong>' . implode(',', $missing_extensions) . '</strong></p><p>Please contact your server provider and ask them to enable these php extentions.</p>';

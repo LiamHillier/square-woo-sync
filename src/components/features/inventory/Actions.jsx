@@ -11,7 +11,7 @@ import {
 import { Dialog } from "@headlessui/react";
 
 import SquareWoo from "./Actions/SquareWoo";
-import { classNames } from "../../utils/classHelper";
+import { classNames } from "../../../utils/classHelper";
 
 const actions = [
   {

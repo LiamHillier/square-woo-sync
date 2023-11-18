@@ -29,6 +29,14 @@
 }
 
 .toplevel_page_square-woo-sync {
+  #wpbody-content {
+    @apply bg-gray-100;
+  }
+  .notice,
+  #screen-meta {
+    margin-top: 84px !important;
+  }
+
   #wpfooter {
     @apply hidden;
   }

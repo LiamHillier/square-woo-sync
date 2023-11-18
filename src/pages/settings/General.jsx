@@ -13,8 +13,8 @@ import {
 } from "@heroicons/react/24/outline";
 import { classNames } from "../../utils/classHelper";
 import { Link } from "react-router-dom";
-import AccessToken from "../../components/settings/general/AccessToken";
-import Webhook from "../../components/settings/general/Webhook";
+import AccessToken from "../../components/features/settings/general/AccessToken";
+import Webhook from "../../components/features/settings/general/Webhook";
 
 const navigation = [
   { name: "Home", href: "#" },
