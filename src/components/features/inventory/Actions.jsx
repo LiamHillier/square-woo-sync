@@ -27,12 +27,7 @@ const actions = [
     iconForeground: "text-purple-700",
     iconBackground: "bg-purple-50",
   },
-  {
-    title: "Product Matcher",
-    icon: ReceiptRefundIcon,
-    iconForeground: "text-rose-700",
-    iconBackground: "bg-rose-50",
-  },
+
   {
     title: "Documentation",
     icon: AcademicCapIcon,
@@ -43,18 +38,15 @@ const actions = [
 
 export default function Actions() {
   return (
-    <div className="divide-y divide-gray-200 overflow-hidden rounded-lg bg-gray-200 shadow-lg sm:grid sm:grid-cols-2 sm:gap-px sm:divide-y-0 relative">
+    <div className="divide-y divide-gray-200 overflow-hidden rounded-lg bg-gray-200 shadow-lg sm:grid sm:grid-cols-3 sm:gap-px sm:divide-y-0 relative">
       {actions.map((action, actionIdx) => (
         <div
           key={action.title}
           className={classNames(
-            actionIdx === 0
-              ? "rounded-tl-lg rounded-tr-lg sm:rounded-tr-none"
-              : "",
-            actionIdx === 1 ? "sm:rounded-tr-lg" : "",
-            actionIdx === actions.length - 2 ? "sm:rounded-bl-lg" : "",
+            actionIdx === 0 ? "rounded-tl-lg  sm:rounded-tr-none" : "",
+            actionIdx === actions.length - 1 ? "sm:rounded-bl-lg" : "",
             actionIdx === actions.length - 1
-              ? "rounded-bl-lg rounded-br-lg sm:rounded-bl-none"
+              ? "rounded-bl-lg rounded-br-lg sm:rounded-bl-none rounded-tr-lg"
               : "",
             "group relative bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-indigo-500"
           )}

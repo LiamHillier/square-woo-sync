@@ -297,7 +297,7 @@ const InventoryTable = ({ inventory, getInventory }) => {
                       onClick: header.column.getToggleSortingHandler(),
                       key: header.id,
                       colSpan: header.colSpan,
-                      className: "py-2 font-bold",
+                      className: "py-2 font-bold select-none",
                       style: {
                         width: idx == 0 ? "50px" : "150px",
                         cursor: header.column.getCanSort()
