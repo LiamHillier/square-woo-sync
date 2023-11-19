@@ -4,6 +4,7 @@ namespace Pixeldev\SWS\Square;
 
 use Square\SquareClient;
 use Square\Environment;
+use Square\Exceptions\ApiException;
 
 class SquareInventory extends SquareHelper
 {
@@ -44,4 +45,37 @@ class SquareInventory extends SquareHelper
         return $square_products;
     }
 
+
+
+    /**
+     * Retrieves all categories from Square and returns them as an associative array.
+     *
+     * @return array
+     */
+    public function getAllSquareCategories()
+    {
+
+        $categories = [];
+
+        try {
+            // Retrieve all catalog items
+            $apiResponse = $this->square->getCatalogApi()->listCatalog('', 'CATEGORY');
+
+            if ($apiResponse->isSuccess()) {
+                $catalogObjects = $apiResponse->getResult()->getObjects();
+                foreach ($catalogObjects as $object) {
+                    if ($object->getType() === 'CATEGORY') {
+                        $categories[$object->getId()] = $object->getCategoryData()->getName();
+                    }
+                }
+            } else {
+                $errors = $apiResponse->getErrors();
+                // Handle errors
+            }
+        } catch (ApiException $e) {
+            // Handle exceptions
+        }
+
+        return $categories;
+    }
 }

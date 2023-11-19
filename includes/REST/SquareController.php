@@ -40,8 +40,22 @@ class SquareController extends RESTController
                 'permission_callback' => [$this, 'check_permission']
             ]
         ]);
+        register_rest_route($this->namespace, '/' . $this->base . '/import', [
+            [
+                'methods' => WP_REST_Server::EDITABLE,
+                'callback' => [$this, 'import'],
+                'permission_callback' => [$this, 'check_permission']
+            ]
+        ]);
     }
 
+
+
+    /**
+     * Retrieve woocommerce products
+     *
+     * @return array
+     */
     public function get_woocommerce_products()
     {
         $args = array(
@@ -66,15 +80,25 @@ class SquareController extends RESTController
 
 
 
-    private function compare_skus($squareInventory, $woocommerceProducts)
+    /**
+     * Compares Square SKU with Woocommerce SKU for matching purposes
+     *
+     * @return array
+     */
+    private function compare_skus($squareInventory, $woocommerceProducts, $square)
     {
         $matchedSKUs = array_column($woocommerceProducts, 'sku'); // Extract SKUs from WooCommerce products
-
+        $categories = $square->getAllSquareCategories(); // Get all Square categories
         $result = [];
 
         foreach ($squareInventory as $squareItem) {
             // Convert the Square item object to an associative array
             $itemData = json_decode(json_encode($squareItem), true);
+
+            // Retrieve and add category name
+            if (isset($itemData['item_data']['category_id']) && isset($categories[$itemData['item_data']['category_id']])) {
+                $itemData['item_data']['category_name'] = $categories[$itemData['item_data']['category_id']];
+            }
 
             // Check for variations and SKUs
             if (isset($itemData['item_data']['variations'])) {
@@ -97,8 +121,6 @@ class SquareController extends RESTController
     }
 
 
-
-
     /**
      * Handles GET requests for inventory.
      *
@@ -119,14 +141,10 @@ class SquareController extends RESTController
                 } else {
                     $inventory = $squareInv->retrieve_inventory();
                     // Additional logic to process or format the inventory data
-                    //     -- Is synced to woocommerce already?
-                    //     -- Get category names from catalog api
                     //     -- Get images from square
-
-
                     // Retrieve WooCommerce products
                     $woocommerceProducts = $this->get_woocommerce_products();
-                    $matches = $this->compare_skus($inventory, $woocommerceProducts);
+                    $matches = $this->compare_skus($inventory, $woocommerceProducts, $squareInv);
 
 
                     return rest_ensure_response($matches);
@@ -139,8 +157,4 @@ class SquareController extends RESTController
             return rest_ensure_response(new WP_Error(500, 'square_inventory_error', $e->getMessage()));
         }
     }
-
-
-
-    // Other methods and logic...
 }

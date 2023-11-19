@@ -24,7 +24,7 @@ function reformatDataForTable(inventory) {
       name: variation.item_variation_data.name, // Assuming you want to use the main item's name
       type: "variation",
       price: variation.item_variation_data.price_money.amount / 100,
-      categories: item.item_data.category_id,
+      categories: item.item_data.category_name,
       status: variation.imported,
     }));
 
@@ -42,7 +42,7 @@ function reformatDataForTable(inventory) {
         minAmount === maxAmount
           ? `$${minAmount}`
           : `$${minAmount} - $${maxAmount}`,
-      categories: item.item_data.category_id,
+      categories: item.item_data.category_name,
       status: item.item_data.variations[0].imported,
       ...(variations.length > 1 && { subRows: variations }),
     };
