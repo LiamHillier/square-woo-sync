@@ -7,7 +7,7 @@ use Square\SquareClient;
 use Square\Environment;
 use WooCommerce\WC_Product_Simple;
 
-class SquareImport
+class SquareImport extends SquareHelper
 {
 
     private $client;
@@ -35,147 +35,249 @@ class SquareImport
     }
 
 
-    public function import_products()
+    public function import_products($square_products)
     {
-        // Fetch products from Square
-        $square_products = $this->fetch_square_products();
+        $results = [];
 
-        // Iterate over each Square product
         foreach ($square_products as $square_product) {
-            // Map the Square product to a WooCommerce product format
-            $wc_product_data = $this->map_square_product_to_woocommerce($square_product);
-            // Create or update the WooCommerce product
-            $this->create_or_update_woocommerce_product($wc_product_data);
-        }
-    }
+            try {
+                $wc_product_data = $this->map_square_product_to_woocommerce($square_product);
+                $product_id = $this->create_or_update_woocommerce_product($wc_product_data);
 
-
-    private function fetch_square_products()
-    {
-
-
-        // Create an instance of the Catalog API
-        $catalogApi =  $this->client->getCatalogApi();
-
-
-        // Fetch list of products (catalog items) from Square
-        $cursor = null;
-        $square_products = [];
-
-        do {
-            $apiResponse = $catalogApi->listCatalog($cursor, 'ITEM');
-
-            if ($apiResponse->isSuccess()) {
-                $listCatalogResponse = $apiResponse->getResult();
-                $items = $listCatalogResponse->getObjects();
-                $square_products = array_merge($square_products, $items);
-                $cursor = $listCatalogResponse->getCursor();
-            } else {
-                error_log('Error fetching Square catalog page: ' . json_encode($apiResponse->getErrors()));
+                if ($product_id) {
+                    $results[] = ['status' => 'success', 'product_id' => $product_id, 'message' => 'Product imported successfully'];
+                } else {
+                    $results[] = ['status' => 'failure', 'product_id' => null, 'message' => 'Failed to import product'];
+                }
+            } catch (\Exception $e) {
+                error_log('Error importing product: ' . $e->getMessage());
+                $results[] = ['status' => 'failure', 'product_id' => null, 'message' => 'Exception occurred: ' . $e->getMessage()];
             }
-        } while ($cursor);
+        }
 
-        return $square_products;
+        return $results;
     }
+
+
 
     private function map_square_product_to_woocommerce($square_product)
     {
+        // error_log(json_encode($square_product));
         $wc_product_data = [];
 
-        // Check if the product is of type ITEM
-        if ($square_product->getType() != 'ITEM') {
-            // If not an ITEM, return empty data or handle accordingly
-            return $wc_product_data;
-        }
-
-        // Accessing ITEM specific data
-        $item_data = $square_product->getItemData();
-
         // Basic product details
-        $wc_product_data['name'] = $item_data->getName();
-        $wc_product_data['description'] = $item_data->getDescription();
-        $wc_product_data['type'] = count($item_data->getVariations()) > 1 ? 'variable' : 'simple';
+        $wc_product_data['name'] = $square_product['item_data']['name'];
+        $wc_product_data['description'] = $square_product['item_data']['description_plaintext'];
+        $wc_product_data['type'] = count($square_product['item_data']['variations']) > 1 ? 'variable' : 'simple';
+        $wc_product_data['sku'] = $square_product['item_data']['variations'][0]['item_variation_data']['sku'] . '-sws';
 
         // Pricing, SKU, and variations for variable products
-        if ($wc_product_data['type'] === 'variable') {
-            $wc_product_data['variations'] = [];
-            foreach ($item_data->getVariations() as $variation) {
-                $variation_data = [
-                    'name' => $variation->getItemVariationData()->getName(),
-                    'sku' => $variation->getItemVariationData()->getSku(),
-                    'price' => $variation->getItemVariationData()->getPriceMoney()->getAmount() / 100, // Convert to decimal
-                    // Add more variation-specific details here
-                ];
-                $wc_product_data['variations'][] = $variation_data;
+
+        $wc_product_data['variations'] = [];
+        foreach ($square_product['item_data']['variations'] as $variation) {
+            $variation_data = [
+                'name' => $variation['item_variation_data']['name'],
+                'sku' => $variation['item_variation_data']['sku'],
+                'price' => $variation['item_variation_data']['price_money']['amount'] / 100,
+                'attributes' => []
+            ];
+
+            // Extracting attributes from the variation
+            if (isset($variation['item_option_values'])) {
+                foreach ($variation['item_option_values'] as $option) {
+                    $variation_data['attributes'][] = [
+                        'name' => $option['optionName'],
+                        'option' => $option['optionValue']
+                    ];
+                }
             }
-        } else {
-            // Pricing for simple products
-            if (!empty($item_data->getVariations())) {
-                $first_variation = $item_data->getVariations()[0];
-                $wc_product_data['sku'] = $first_variation->getItemVariationData()->getSku();
-                $wc_product_data['regular_price'] = $first_variation->getItemVariationData()->getPriceMoney()->getAmount() / 100; // Convert to decimal
-            }
+
+            $wc_product_data['variations'][] = $variation_data;
         }
+
+        $wc_product_data['price'] = $square_product['item_data']['variations'][0]['item_variation_data']['price_money']['amount'] / 100;
+
 
         // Additional mappings can be added as needed (e.g., categories, images, etc.)
 
         return $wc_product_data;
     }
 
+
     private function create_or_update_woocommerce_product($wc_product_data)
     {
-        if (isset($wc_product_data['sku'])) {
+        try {
+
             // Check if a product with the given SKU already exists in WooCommerce
             $product_id = wc_get_product_id_by_sku($wc_product_data['sku']);
 
-            if ($product_id) {
-                // Update existing product
-                $product = wc_get_product($product_id);
+            // Determine the product type and create or load the appropriate product object
+            if ($wc_product_data['type'] === 'simple') {
+                $product = $product_id ? wc_get_product($product_id) : new \WC_Product_Simple();
             } else {
-                // Create new product
-                if ($wc_product_data['type'] === 'simple') {
-                    $product = new \WC_Product_Simple();
-                } elseif ($wc_product_data['type'] === 'variable') {
-                    $product = new \WC_Product_Variable();
-                } else {
-                    // Handle other product types if necessary
-                    return;
-                }
+                $product = $product_id ? wc_get_product($product_id) : new \WC_Product_Variable();
             }
 
             // Set common product properties
             $product->set_name($wc_product_data['name']);
+            $product->set_sku($wc_product_data['sku']);
             $product->set_description($wc_product_data['description']);
-            // Set more properties as needed (e.g., categories, images, etc.)
 
-            // Handle variations for variable products
             if ($wc_product_data['type'] === 'variable') {
+                $all_attribute_options = [];
+
+                // Aggregate options for each attribute across all variations
+                foreach ($wc_product_data['variations'] as $variation) {
+                    foreach ($variation['attributes'] as $attribute) {
+                        $all_attribute_options[$attribute['name']][] = $attribute['option'];
+                    }
+                }
+
+                // Make sure options are unique and set them for product-level attributes
+                $attributes = [];
+                foreach ($all_attribute_options as $name => $options) {
+                    $attribute_id = $this->get_or_create_global_attribute($name);
+
+                    if ($attribute_id !== false) {
+                        $attribute = new \WC_Product_Attribute();
+                        $attribute->set_id($attribute_id);
+                        $attribute->set_name('pa_' . wc_sanitize_taxonomy_name($name));
+
+                        $term_ids = array();
+                        foreach ($options as $option) {
+                            $term_id = $this->get_or_create_attribute_term($name, $option);
+                            if ($term_id !== false) {
+                                $term_ids[] = $term_id;
+                            }
+                        }
+
+                        $attribute->set_options($term_ids);
+                        $attribute->set_visible(true);
+                        $attribute->set_variation(true);
+                        $attributes[] = $attribute;
+                    }
+                }
+                $product->set_attributes($attributes);
+
+                $product->save(); // Save to get ID for variations
+
+                $existing_variations = $product->get_children();
                 foreach ($wc_product_data['variations'] as $variation_data) {
-                    $variation = new WC_Product_Variation();
+                    $variation_id = wc_get_product_id_by_sku($variation_data['sku']);
+                    $variation = $variation_id ? new \WC_Product_Variation($variation_id) : new \WC_Product_Variation();
+                    $variation->set_parent_id($product->get_id());
                     $variation->set_sku($variation_data['sku']);
                     $variation->set_regular_price($variation_data['price']);
-                    // Set more variation properties as needed
 
-                    $product->add_child($variation);
-                }
-            } else {
-                // Set pricing for simple products
-                $product->set_regular_price($wc_product_data['regular_price']);
-            }
+                    $variation_attributes = [];
+                    foreach ($variation_data['attributes'] as $attribute) {
 
-            // Save the product
-            $product->save();
+                        $attr_slug = 'attribute_pa_' . sanitize_title($attribute['name']);
 
-            // Additional handling for variations of variable products
-            if ($wc_product_data['type'] === 'variable') {
-                foreach ($product->get_children() as $child_id) {
-                    $variation = new WC_Product_Variation($child_id);
-                    // Set or update additional variation data if needed
+                        $variation_attributes[$attr_slug] = sanitize_title($attribute['option']);
+                    }
+
+                    $variation->set_attributes($variation_attributes);
+
                     $variation->save();
                 }
+            } else {
+                // For simple products
+                $product->set_regular_price($wc_product_data['price']);
+
+                // Handle attributes for simple products (if any)
+                $attributes = [];
+                if (isset($wc_product_data['attributes'])) {
+                    foreach ($wc_product_data['attributes'] as $name => $value) {
+                        $attribute_id = $this->get_or_create_global_attribute($name);
+                        if ($attribute_id !== false) {
+                            $attribute = new \WC_Product_Attribute();
+                            $attribute->set_id($attribute_id);
+                            $attribute->set_name('pa_' . wc_sanitize_taxonomy_name($name));
+
+                            $term_id = $this->get_or_create_attribute_term($name, $value);
+                            $attribute->set_options($term_id ? [$term_id] : []);
+                            $attribute->set_visible(true);
+                            $attributes[] = $attribute;
+                        }
+                    }
+                    $product->set_attributes($attributes);
+                }
             }
+
+            $product->save();
+            return $product->get_id(); // Return the product ID
+
+        } catch (\Exception $e) {
+            error_log('Error creating/updating product: ' . $e->getMessage());
+            return false; // Return false in case of error
         }
     }
+
+
+    private function get_or_create_global_attribute($attribute_name)
+    {
+        $taxonomy = 'pa_' . wc_sanitize_taxonomy_name($attribute_name);
+
+        if (!taxonomy_exists($taxonomy)) {
+            // Create the attribute if it doesn't exist
+            $args = array(
+                'name'         => $attribute_name,
+                'slug'         => wc_sanitize_taxonomy_name($attribute_name),
+                'type'         => 'select',
+                'order_by'     => 'menu_order',
+                'has_archives' => true,
+            );
+            $result = wc_create_attribute($args);
+
+            if (is_wp_error($result)) {
+                error_log('Error creating attribute: ' . $result->get_error_message());
+                return false;
+            }
+
+            // Get the ID of the created attribute
+            $attribute_id = $result;
+        } else {
+            $attribute_id = wc_attribute_taxonomy_id_by_name($taxonomy);
+        }
+
+        return $attribute_id;
+    }
+
+    private function get_or_create_attribute_term($attribute_name, $term_name)
+    {
+        $taxonomy = 'pa_' . wc_sanitize_taxonomy_name($attribute_name);
+
+        // Ensure taxonomy exists
+        if (!taxonomy_exists($taxonomy)) {
+            error_log("Taxonomy does not exist: {$taxonomy}");
+            return false;
+        }
+
+        $term = get_term_by('name', $term_name, $taxonomy);
+        if (!$term) {
+            // Create the term if it doesn't exist
+            $result = wp_insert_term($term_name, $taxonomy);
+
+            if (is_wp_error($result)) {
+                error_log('Error creating term: ' . $result->get_error_message());
+                return false;
+            }
+
+            // wp_insert_term returns an array with the term ID
+            $term_id = $result['term_id'];
+        } else {
+            // If the term exists, get_term_by returns an object, so we use $term->term_id
+            $term_id = $term->term_id;
+        }
+
+        return $term_id;
+    }
+
+
+
+
+
 
     // Additional methods for handling product variations, attributes, etc.
 }

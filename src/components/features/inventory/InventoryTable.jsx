@@ -1,4 +1,5 @@
 import { useMemo, useState } from "@wordpress/element";
+import { toast } from "react-toastify";
 import {
   getSortedRowModel,
   useReactTable,
@@ -16,6 +17,9 @@ import {
 } from "@heroicons/react/24/outline";
 import { classNames } from "../../../utils/classHelper";
 import DebouncedInput from "../../DebouncedInput";
+import apiFetch from "@wordpress/api-fetch";
+import { useSelector, useDispatch } from "react-redux";
+import { setInventory } from "../../../redux/inventorySlice";
 
 function reformatDataForTable(inventory) {
   return inventory.map((item) => {
@@ -26,6 +30,7 @@ function reformatDataForTable(inventory) {
       price: variation.item_variation_data.price_money.amount / 100,
       categories: item.item_data.category_name,
       status: variation.imported,
+      id: variation.id,
     }));
 
     const price = item.item_data.variations.map(
@@ -36,6 +41,7 @@ function reformatDataForTable(inventory) {
 
     return {
       sku: item.item_data.variations[0].item_variation_data.sku,
+      id: item.id,
       name: item.item_data.name,
       type: item.item_data.variations.length > 1 ? "Variable" : "Simple",
       price:
@@ -43,7 +49,15 @@ function reformatDataForTable(inventory) {
           ? `$${minAmount}`
           : `$${minAmount} - $${maxAmount}`,
       categories: item.item_data.category_name,
-      status: item.item_data.variations[0].imported,
+      status:
+        item.item_data.variations.length > 1
+          ? variations.some((vari) => vari.status) &&
+            !variations.every((vari) => vari.status)
+            ? "partial"
+            : variations.every((vari) => vari.status)
+            ? true
+            : false
+          : item.imported,
       ...(variations.length > 1 && { subRows: variations }),
     };
   });
@@ -67,143 +81,245 @@ const filterRows = (row, id, value) => {
   return mainRowMatch || subRowMatch;
 };
 
-const InventoryTable = ({ inventory, getInventory }) => {
+const InventoryTable = ({ getInventory }) => {
+  const [loadingProductId, setLoadingProductId] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const dispatch = useDispatch();
+  const inventory = useSelector((state) => state.inventory.items);
+
+  const importProduct = async (product) => {
+    if (isImporting) {
+      return;
+    }
+    setIsImporting(true);
+    let id = toast.loading("Importing product");
+    setLoadingProductId(product.id); // Set loading state
+    const currentPageIndex = table.getState().pagination.pageIndex;
+    try {
+      const invMatch = inventory.find((inv) => inv.id === product.id);
+      if (invMatch) {
+        const response = await apiFetch({
+          path: "/sws/v1/square-inventory/import",
+          method: "POST",
+          data: { product: invMatch },
+        });
+        response.forEach((res) => {
+          if (res.status === "success") {
+            const updatedInventory = inventory.map((item) => {
+              if (item.id === product.id) {
+                return {
+                  ...item,
+                  status: "imported",
+                  ...(item.item_data.variations && {
+                    item_data: {
+                      ...item.item_data,
+                      variations: item.item_data.variations.map(
+                        (variation) => ({
+                          ...variation,
+                          imported: true,
+                        })
+                      ),
+                    },
+                  }),
+                };
+              }
+              return item;
+            });
+
+            dispatch(setInventory(updatedInventory));
+
+            toast.update(id, {
+              render: "Product imported",
+              type: "success",
+              isLoading: false,
+              autoClose: 2000,
+              hideProgressBar: false,
+              closeOnClick: true,
+            });
+          } else {
+            toast.update(id, {
+              render: res.message,
+              type: "error",
+              isLoading: false,
+              autoClose: false,
+              closeOnClick: true,
+            });
+          }
+        });
+      }
+      setLoadingProductId(null);
+      setIsImporting(false);
+    } catch (error) {
+      console.error(error);
+      toast.update(id, {
+        render: error.message,
+        type: "error",
+        isLoading: false,
+        autoClose: false,
+        closeOnClick: true,
+      });
+      setLoadingProductId(null);
+      setIsImporting(false);
+    } finally {
+      table.setPageIndex(currentPageIndex);
+    }
+  };
+
   // Data and columns configuration
-  const columns = useMemo(
-    () => [
-      {
-        id: "expander",
-        width: 50,
-        cell: ({ row }) => {
-          return (
-            <>
-              {row.getCanExpand() ? (
-                <button onClick={() => row.toggleExpanded()}>
-                  {row.getIsExpanded() ? (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="w-4 h-4 rotate-90"
-                    >
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="w-4 h-4"
-                    >
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  )}
-                </button>
-              ) : (
-                <>
-                  {row.subRows.length > 0 && (
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="w-6 h-6 text-indigo-500 pl-2"
-                    >
-                      <polyline points="15 10 20 15 15 20" />
-                      <path d="M4 4v7a4 4 0 0 0 4 4h12" />
-                    </svg>
-                  )}
-                </>
-              )}
-            </>
-          );
-        },
+  const columns = [
+    {
+      id: "expander",
+      width: 50,
+      cell: ({ row }) => {
+        return (
+          <>
+            {row.getCanExpand() ? (
+              <button onClick={() => row.toggleExpanded()}>
+                {row.getIsExpanded() ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="w-4 h-4 rotate-90"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="w-4 h-4"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                )}
+              </button>
+            ) : (
+              <>
+                {row.subRows.length > 0 && (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="w-6 h-6 text-indigo-500 pl-2"
+                  >
+                    <polyline points="15 10 20 15 15 20" />
+                    <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+                  </svg>
+                )}
+              </>
+            )}
+          </>
+        );
       },
-      {
-        accessorKey: "sku",
-        header: () => "SKU",
-        canSort: true,
-      },
-      {
-        accessorKey: "name",
-        header: () => "Product Name",
-        canSort: true,
-      },
-      {
-        accessorKey: "type",
-        header: () => "Type",
-        canSort: true,
-      },
-      {
-        accessorKey: "price",
-        canSort: true,
-        header: () => "Price",
-      },
-      {
-        accessorKey: "categories",
-        header: () => "categories",
-        canSort: true,
-      },
-      {
-        accessorKey: "status",
-        canSort: true,
-        header: () => "Status",
-        cell: ({ getValue }) => {
-          return (
-            <span
-              className={`inline-flex items-center gap-x-1.5 rounded-md  px-2 py-1 text-xs font-medium  ${
-                getValue()
-                  ? "bg-green-100 text-green-700"
-                  : "text-red-700 bg-red-100"
-              }`}
+    },
+    {
+      accessorKey: "id",
+      header: () => "id",
+      show: false,
+    },
+    {
+      accessorKey: "sku",
+      header: () => "SKU",
+      canSort: true,
+    },
+    {
+      accessorKey: "name",
+      header: () => "Product Name",
+      canSort: true,
+    },
+    {
+      accessorKey: "type",
+      header: () => "Type",
+      canSort: true,
+    },
+    {
+      accessorKey: "price",
+      canSort: true,
+      header: () => "Price",
+    },
+    {
+      accessorKey: "categories",
+      header: () => "categories",
+      canSort: true,
+    },
+    {
+      accessorKey: "status",
+      canSort: true,
+      header: () => "Status",
+      cell: ({ getValue }) => {
+        const value = getValue();
+        let bgColor, textColor, fillColor;
+
+        if (value === false) {
+          bgColor = "bg-red-100";
+          textColor = "text-red-700";
+          fillColor = "fill-red-500";
+        } else if (value === "partial") {
+          bgColor = "bg-yellow-100";
+          textColor = "text-yellow-700";
+          fillColor = "fill-yellow-500";
+        } else {
+          bgColor = "bg-green-100";
+          textColor = "text-green-700";
+          fillColor = "fill-green-500";
+        }
+
+        return (
+          <span
+            className={`inline-flex items-center gap-x-1.5 rounded-md px-2 py-1 text-xs font-medium ${bgColor} ${textColor}`}
+          >
+            <svg
+              className={`h-1.5 w-1.5 ${fillColor}`}
+              viewBox="0 0 6 6"
+              aria-hidden="true"
             >
-              <svg
-                className={`h-1.5 w-1.5 ${
-                  getValue() === false ? "fill-red-500" : "fill-green-500"
-                }`}
-                viewBox="0 0 6 6"
-                aria-hidden="true"
-              >
-                <circle cx={3} cy={3} r={3} />
-              </svg>
-              {getValue() === false ? "Not imported" : "imported"}
-            </span>
-          );
-        },
+              <circle cx={3} cy={3} r={3} />
+            </svg>
+            {value === false
+              ? "Not imported"
+              : value === "partial"
+              ? "Partial"
+              : "Imported"}
+          </span>
+        );
       },
-      {
-        id: "actions",
-        cell: ({ row }) => {
-          return (
-            <button
-              type="button"
-              className="rounded bg-indigo-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-            >
-              import
-            </button>
-          );
-        },
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => {
+        return (
+          <button
+            type="button"
+            onClick={() => importProduct(row.original)}
+            className="rounded bg-indigo-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            disabled={isImporting}
+          >
+            {row.original.status === true ? "Sync" : "Import"}
+          </button>
+        );
       },
-    ],
-    []
-  );
+    },
+  ];
 
   const [expanded, setExpanded] = useState({});
   const [sorting, setSorting] = useState([]);
@@ -214,12 +330,17 @@ const InventoryTable = ({ inventory, getInventory }) => {
     [inventory]
   );
 
+  const [columnVisibility] = useState({
+    id: false,
+  });
+
   const table = useReactTable({
     data: reformattedData,
     columns,
     state: {
       expanded,
       sorting,
+      columnVisibility,
       globalFilter,
     },
     filterFns: {
@@ -235,6 +356,8 @@ const InventoryTable = ({ inventory, getInventory }) => {
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     getSortedRowModel: getSortedRowModel(),
+    autoResetPageIndex: false,
+    getRowId: (row) => row.id,
   });
 
   return (
@@ -334,13 +457,15 @@ const InventoryTable = ({ inventory, getInventory }) => {
           </thead>
           <tbody className="divide-y divide-gray-200">
             {table.getRowModel().rows.map((row) => {
-              // Determine if the row is expanded
               const isSubRow = row.original.type === "variation";
               const isExpanded = row.getIsExpanded();
-              // Conditional class names for sub-rows
-              const rowClassNames = isSubRow
-                ? "py-4 wrap bg-indigo-50" // Example style for sub-rows
-                : "py-4 wrap";
+              const isLoading = row.original.id === loadingProductId;
+
+              const rowClassNames = classNames(
+                isSubRow ? "bg-indigo-50" : "", // Example style for sub-rows
+                isLoading ? "bg-gray-100" : "", // Style for loading rows
+                "py-4 wrap"
+              );
 
               return (
                 <tr

@@ -19,7 +19,7 @@ export default function Inventory() {
     let id = toast.loading("Retrieving square inventory");
 
     try {
-      const response = await apiFetch({ path: "/sws/v1/square-inventory" });
+      const response = await apiFetch({ path: "/sws/v1/square-inventory/" });
       toast.update(id, {
         render: "Inventory received",
         type: "success",
@@ -52,7 +52,7 @@ export default function Inventory() {
         )}
         {loading && <InvLoading />}
         {inventory.length > 0 && !loading && (
-          <InventoryTable {...{ inventory, getInventory }} />
+          <InventoryTable {...{ getInventory }} />
         )}
       </div>
     </>
