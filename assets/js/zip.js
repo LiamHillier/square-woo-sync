@@ -11,6 +11,7 @@ const pluginFiles = [
   "assets/",
   "build/",
   "includes/",
+  "vendor/",
   "templates/",
   "square-woo-sync.php",
 ];

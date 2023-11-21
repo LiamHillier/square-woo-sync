@@ -22,7 +22,7 @@
     "test:unit": "wp-scripts test-unit-js",
     "makepot": "wp i18n make-pot --domain='square-woo-sync' --exclude='node_modules,.storybook,src,vendor,assets' . --headers='{\"Last-Translator\":\"liam@pixeldev.com.au\",\"Report-Msgid-Bugs-To\":\"https://github.com/LiamHillier/square-woo-sync/issues\"}' --file-comment=\"Copyright (c) $(date +'%Y') Liam Hillier. All Rights Reserved.\"",
     "zip": "node assets/js/zip",
-    "release": "npm run build && npm run makepot && npm run version && npm run zip"
+    "release": "npm run build && npm run makepot && npm run zip"
   },
   "keywords": [],
   "author": "",
