@@ -31,9 +31,9 @@ class Menu {
         $slug          = SWS_SLUG;
         $menu_position = 50;
         $capability    = 'manage_options';
-        $logo_icon     = SWS_ASSETS . '/images/logo (3) (1).png';
+        $logo_icon     = SWS_ASSETS . '/images/logo-new.svg';
 
-        add_menu_page( esc_attr__( 'Square Woo Sync', 'square-woo-sync' ), esc_attr__( 'Square Woo Sync', 'square-woo-sync' ), $capability, $slug, [ $this, 'plugin_page' ], $logo_icon, $menu_position );
+        add_menu_page( esc_attr__( 'Square Woo Sync', 'square-woo-sync' ), esc_attr__( 'SquareWoo', 'square-woo-sync' ), $capability, $slug, [ $this, 'plugin_page' ], $logo_icon, $menu_position );
 
         if ( current_user_can( $capability ) ) {
             $submenu[ $slug ][] = [ esc_attr__( 'Dashboard', 'square-woo-sync' ), $capability, 'admin.php?page=' . $slug . '#/' ];

@@ -1,8 +1,16 @@
 {
   "name": "square-woo-sync",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "main": "src/index.js",
+  "files": [
+    "assets/",
+    "build/",
+    "includes/",
+    "vendor/",
+    "templates/",
+    "square-woo-sync.php"
+  ],
   "scripts": {
     "wp-env": "wp-env",
     "check-engines": "wp-scripts check-engines",
@@ -22,7 +30,7 @@
     "test:unit": "wp-scripts test-unit-js",
     "makepot": "wp i18n make-pot --domain='square-woo-sync' --exclude='node_modules,.storybook,src,vendor,assets' . --headers='{\"Last-Translator\":\"liam@pixeldev.com.au\",\"Report-Msgid-Bugs-To\":\"https://github.com/LiamHillier/square-woo-sync/issues\"}' --file-comment=\"Copyright (c) $(date +'%Y') Liam Hillier. All Rights Reserved.\"",
     "zip": "node assets/js/zip",
-    "release": "npm run build && npm run makepot && npm run zip"
+    "release": "npm run build && npm run makepot && npm run plugin-zip"
   },
   "keywords": [],
   "author": "",
@@ -34,9 +42,13 @@
     "@wordpress/i18n": "^4.45.0",
     "@wordpress/scripts": "^26.16.0",
     "autoprefixer": "^10.4.16",
+    "chalk": "^2.4.2",
+    "fs-extra": "^11.1.1",
+    "lodash": "^4.17.21",
     "postcss": "^8.4.31",
     "react-router-dom": "^6.18.0",
-    "tailwindcss": "^3.3.5"
+    "tailwindcss": "^3.3.5",
+    "util": "^0.12.5"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",

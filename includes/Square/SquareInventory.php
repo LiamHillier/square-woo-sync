@@ -2,32 +2,23 @@
 
 namespace Pixeldev\SWS\Square;
 
-use Square\SquareClient;
-use Square\Environment;
-
-
 class SquareInventory extends SquareHelper
 {
-    private $square;
 
     public function __construct()
     {
-        $accessToken = $this->get_access_token();
-        $this->square = new SquareClient([
-            'accessToken' => $accessToken,
-            'environment' => Environment::SANDBOX, // or ::PRODUCTION
-        ]);
+        parent::__construct($this->get_access_token());
     }
 
     public function retrieve_inventory()
     {
         try {
-            // Create an instance of the Catalog API
-            $catalogApi = $this->square->getCatalogApi();
 
-            $square_products = $this->fetchSquareItems($catalogApi);
-            $item_options = $this->fetchSquareItemOptions($catalogApi);
-            $item_option_values = $this->fetchSquareItemOptionValues($catalogApi);
+
+            $square_products = $this->fetchSquareItems();
+            $item_options = $this->fetchSquareItemOptions();
+            $item_option_values = $this->fetchSquareItemOptionValues();
+
 
             // Prepare the final array of products with options
             $enhanced_products = [];
@@ -39,22 +30,33 @@ class SquareInventory extends SquareHelper
                     foreach ($product_data['item_data']['variations'] as $index => &$variation) {
                         $variationOptions = [];
 
-                        foreach ($variation['item_variation_data']['item_option_values'] as $optionValue) {
-                            $optionId = $optionValue['item_option_id'];
-                            $optionValueId = $optionValue['item_option_value_id'];
-                            $optionName = $item_options[$optionId] ?? null;
-                            $optionValueName = $item_option_values[$optionId][$optionValueId] ?? null;
+                        if (isset($variation['item_variation_data']['item_option_values'])) {
+                            foreach ($variation['item_variation_data']['item_option_values'] as $optionValue) {
+                                $optionId = $optionValue['item_option_id'];
+                                $optionValueId = $optionValue['item_option_value_id'];
+                                $optionName = $item_options[$optionId] ?? null;
+                                $optionValueName = $item_option_values[$optionId][$optionValueId] ?? null;
 
-                            $variationOptions[] = [
-                                'optionName' => $optionName,
-                                'optionValue' => $optionValueName
-                            ];
+                                $variationOptions[] = [
+                                    'optionName' => $optionName,
+                                    'optionValue' => $optionValueName
+                                ];
+                            }
                         }
+
 
                         // Update the variation with the new options
                         $variation['item_option_values'] = $variationOptions;
                     }
                     unset($variation); // Break the reference with the last element
+                }
+
+                // Fetch and assign image URL to the product
+                if (isset($product_data['item_data']['image_ids'])) {
+                    $product_data['item_data']['image_urls'] = [];
+                    foreach ($product_data['item_data']['image_ids'] as $id) {
+                        $product_data['item_data']['image_urls'][] = $this->fetchSquareImageUrl($id);
+                    }
                 }
 
                 // Add the enhanced product data to the final array
@@ -69,88 +71,102 @@ class SquareInventory extends SquareHelper
         }
     }
 
-    private function fetchSquareItems($catalogApi)
+
+    private function fetchSquareImageUrl($imageId)
+    {
+        $response = $this->squareApiRequest("/catalog/object/" . $imageId);
+
+
+        if ($response['success']) {
+            // Access the nested URL
+            return $response['data']['object']['image_data']['url'] ?? null;
+        } else {
+            error_log('Error fetching Square image: ' . $response['error']);
+            return null;
+        }
+    }
+
+
+    private function fetchSquareItems()
     {
         $cursor = null;
         $items = [];
 
         do {
-            $apiResponse = $catalogApi->listCatalog($cursor, 'ITEM');
-            if ($apiResponse->isSuccess()) {
-                $listCatalogResponse = $apiResponse->getResult();
-                $items = array_merge($items, $listCatalogResponse->getObjects());
-                $cursor = $listCatalogResponse->getCursor();
+            $response = $this->squareApiRequest('/catalog/list?types=ITEM&cursor=' . $cursor);
+            if ($response['success']) {
+                $items = array_merge($items, $response['data']['objects']);
+                $cursor = $response['data']['cursor'] ?? null;
             } else {
-                throw new \Exception('Error fetching Square items: ' . json_encode($apiResponse->getErrors()));
+                error_log('Error fetching Square items: ' . $response['error']);
+                return ['error' => 'Error fetching Square itemss: ' . $response['error']];
             }
         } while ($cursor);
 
         return $items;
     }
 
-    private function fetchSquareItemOptions($catalogApi)
+    private function fetchSquareItemOptions()
     {
         $cursor = null;
         $options = [];
 
         do {
-            $apiResponse = $catalogApi->listCatalog($cursor, 'ITEM_OPTION');
-            if ($apiResponse->isSuccess()) {
-                $listCatalogResponse = $apiResponse->getResult();
-                foreach ($listCatalogResponse->getObjects() as $option) {
-                    $options[$option->getId()] = $option->getItemOptionData()->getName();
+            $response = $this->squareApiRequest('/catalog/list?types=ITEM_OPTION&cursor=' . $cursor);
+            if ($response['success']) {
+                foreach ($response['data']['objects'] as $option) {
+                    $options[$option['id']] = $option['item_option_data']['name'];
                 }
-                $cursor = $listCatalogResponse->getCursor();
+                $cursor = $response['data']['cursor'] ?? null;
             } else {
-                throw new \Exception('Error fetching Square item options: ' . json_encode($apiResponse->getErrors()));
+                error_log('Error fetching Square item options: ' . $response['error']);
+                return ['error' => 'Error fetching Square item options: ' . $response['error']];
             }
         } while ($cursor);
 
         return $options;
     }
 
-    private function fetchSquareItemOptionValues($catalogApi)
+
+    private function fetchSquareItemOptionValues()
     {
         $cursor = null;
         $optionValues = [];
 
         do {
-            $apiResponse = $catalogApi->listCatalog($cursor, 'ITEM_OPTION_VAL');
-            if ($apiResponse->isSuccess()) {
-                $listCatalogResponse = $apiResponse->getResult();
-                foreach ($listCatalogResponse->getObjects() as $valueObject) {
-                    $optionId = $valueObject->getItemOptionValueData()->getItemOptionId();
-                    $valueId = $valueObject->getId();
-                    $valueName = $valueObject->getItemOptionValueData()->getName();
+            $response = $this->squareApiRequest('/catalog/list?types=ITEM_OPTION_VAL&cursor=' . $cursor);
+            if ($response['success']) {
+                foreach ($response['data']['objects'] as $valueObject) {
+                    $optionId = $valueObject['item_option_value_data']['item_option_id'];
+                    $valueId = $valueObject['id'];
+                    $valueName = $valueObject['item_option_value_data']['name'];
                     $optionValues[$optionId][$valueId] = $valueName;
                 }
-                $cursor = $listCatalogResponse->getCursor();
+                $cursor = $response['data']['cursor'] ?? null;
             } else {
-                throw new \Exception('Error fetching Square item option values: ' . json_encode($apiResponse->getErrors()));
+                error_log('Error fetching Square item option values: ' . $response['error']);
+                return ['error' => 'Error fetching Square item option values: ' . $response['error']];
             }
         } while ($cursor);
 
         return $optionValues;
     }
 
+
     public function getAllSquareCategories()
     {
         try {
-            $apiResponse = $this->square->getCatalogApi()->listCatalog('', 'CATEGORY');
-
-            if ($apiResponse->isSuccess()) {
-                $catalogObjects = $apiResponse->getResult()->getObjects();
+            $response = $this->squareApiRequest('/catalog/list?types=CATEGORY');
+            if ($response['success']) {
                 $categories = [];
-
-                foreach ($catalogObjects as $object) {
-                    if ($object->getType() === 'CATEGORY') {
-                        $categories[$object->getId()] = $object->getCategoryData()->getName();
-                    }
+                foreach ($response['data']['objects'] as $object) {
+                    $categories[$object['id']] = $object['category_data']['name'];
                 }
 
                 return $categories;
             } else {
-                throw new \Exception('Error fetching Square categories: ' . json_encode($apiResponse->getErrors()));
+                error_log('Error fetching Square categories: ' . $response['error']);
+                return ['error' => 'E rror fetching Square categories: ' . $response['error']];
             }
         } catch (\Exception $e) {
             error_log('Error in SquareInventory::getAllSquareCategories: ' . $e->getMessage());

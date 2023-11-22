@@ -2,7 +2,6 @@
 
 namespace Pixeldev\SWS\REST;
 
-use Error;
 use Pixeldev\SWS\Abstracts\RESTController;
 use Pixeldev\SWS\Square\SquareInventory;
 use Pixeldev\SWS\Square\SquareHelper;
@@ -54,19 +53,18 @@ class SquareController extends RESTController
 
     private function get_token_and_validate()
     {
-        $squareInv = new SquareInventory();
-        $token = $squareInv->get_access_token();
+        $square = new SquareHelper();
+        $token = $square->get_access_token();
 
         if (!$token) {
             return new WP_Error(401, 'Access token not set');
         }
 
-        $square = new SquareHelper($token);
         if (!$square->isTokenValid()) {
             return new WP_Error(401, 'Invalid access token');
         }
 
-        return $square;
+        return $token;
     }
 
     /**
@@ -117,7 +115,7 @@ class SquareController extends RESTController
      */
     private function compare_skus($squareInventory, $woocommerceProducts, $square)
     {
-        $matchedSKUs = array_column($woocommerceProducts, 'sku');
+        $wcProductsBySKU = array_column($woocommerceProducts, null, 'sku');
         $categories = $square->getAllSquareCategories();
         $result = [];
 
@@ -129,17 +127,26 @@ class SquareController extends RESTController
             }
 
             $parentSku = isset($itemData['item_data']['variations'][0]['item_variation_data']['sku']) ? $itemData['item_data']['variations'][0]['item_variation_data']['sku'] . '-sws' : null;
-            $itemData['imported'] = $parentSku && in_array($parentSku, $matchedSKUs);
+
+            // Check if the parent SKU is in the matched SKUs and add WooCommerce product ID
+            $itemData['imported'] = false;
+            if ($parentSku && isset($wcProductsBySKU[$parentSku])) {
+                $itemData['imported'] = true;
+                $itemData['woocommerce_product_id'] = $wcProductsBySKU[$parentSku]['id'];
+            }
 
             if (isset($itemData['item_data']['variations'])) {
                 foreach ($itemData['item_data']['variations'] as &$variation) {
                     $variation['imported'] = false;
                     $variationSku = isset($variation['item_variation_data']['sku']) ? $variation['item_variation_data']['sku'] : null;
-                    if ($variationSku && in_array($variationSku, $matchedSKUs)) {
+
+                    // Check for each variation SKU and add WooCommerce product ID
+                    if ($variationSku && isset($wcProductsBySKU[$variationSku])) {
                         $variation['imported'] = true;
+                        $variation['woocommerce_product_id'] = $wcProductsBySKU[$variationSku]['id'];
                     }
                 }
-                unset($variation);
+                unset($variation); // Break the reference with the last element
             }
 
             $result[] = $itemData;
@@ -158,28 +165,21 @@ class SquareController extends RESTController
      */
     public function get_square_inventory()
     {
-        $square = $this->get_token_and_validate();
-        if (is_wp_error($square)) {
-            return rest_ensure_response($square);
+        $token = $this->get_token_and_validate();
+        if (is_wp_error($token)) {
+            return rest_ensure_response(new WP_Error(401, 'Invalid access token'));
         }
 
         try {
             $squareInv = new SquareInventory();
-            $token = $squareInv->get_access_token();
             if ($token) {
-                $isValidToken = $square->isTokenValid();
-                if (!$isValidToken) {
-                    return rest_ensure_response(new WP_Error(401, 'Invalid access token'));
-                } else {
-                    $inventory = $squareInv->retrieve_inventory();
-                    // Additional logic to process or format the inventory data
-                    //     -- Get images from square
-                    // Retrieve WooCommerce products
-                    $woocommerceProducts = $this->get_woocommerce_products();
-                    $matches = $this->compare_skus($inventory, $woocommerceProducts, $squareInv);
-
-                    return rest_ensure_response($matches);
-                }
+                $inventory = $squareInv->retrieve_inventory();
+                // Additional logic to process or format the inventory data
+                //     -- Get images from square
+                // Retrieve WooCommerce products
+                $woocommerceProducts = $this->get_woocommerce_products();
+                $matches = $this->compare_skus($inventory, $woocommerceProducts, $squareInv);
+                return rest_ensure_response($matches);
             } else {
                 return rest_ensure_response(new WP_Error(401, 'Access token not set'));
             }
@@ -197,24 +197,17 @@ class SquareController extends RESTController
      */
     public function import_to_woocommerce(WP_REST_Request $request): WP_REST_Response
     {
-        $square = $this->get_token_and_validate();
-        if (is_wp_error($square)) {
-            return rest_ensure_response($square);
+        $token = $this->get_token_and_validate();
+        if (is_wp_error($token)) {
+            return rest_ensure_response(new WP_Error(401, 'Invalid access token'));
         }
+
         $product =  $request->get_param('product');
-
         $squareImport = new SquareImport();
-        $token = $squareImport->get_access_token();
-        if ($token) {
-            $square = new SquareHelper($token);
-            $isValidToken = $square->isTokenValid();
-            if (!$isValidToken) {
 
-                return rest_ensure_response(new WP_Error(401, 'Invalid access token'));
-            } else {
-                $wooProduct = $squareImport->import_products(array($product));
-                return rest_ensure_response($wooProduct);
-            }
+        if ($token) {
+            $wooProduct = $squareImport->import_products(array($product));
+            return rest_ensure_response($wooProduct);
         } else {
             return rest_ensure_response(new WP_Error(401, 'Access token not set'));
         }

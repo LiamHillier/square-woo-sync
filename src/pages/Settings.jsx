@@ -1,4 +1,4 @@
-import General from "./settings/General";
+import General from './settings/General';
 export default function Settings() {
-  return <General />;
+	return <General />;
 }

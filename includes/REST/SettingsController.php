@@ -93,9 +93,9 @@ class SettingsController extends RESTController
     public function set_access_token(WP_REST_Request $request): WP_REST_Response
     {
         $token = $request->get_param('access_token');
-        $squareHelper = new SquareHelper($token);
+        $squareHelper = new SquareHelper();
 
-        if (!$squareHelper->isTokenValid()) {
+        if (!$squareHelper->isTokenValid($token)) {
             $error_data = ['message' => 'The provided token is invalid', 'status' => 400];
             return rest_ensure_response($error_data, 400);
         }
@@ -109,7 +109,7 @@ class SettingsController extends RESTController
     }
 
     // Delete the access token
-    public function delete_access_token(WP_REST_Request $request): WP_REST_Response
+    public function delete_access_token(): WP_REST_Response
     {
         $settings = get_option('sws_settings', []);
         unset($settings['access_token']);

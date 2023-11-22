@@ -2,34 +2,68 @@
 
 namespace Pixeldev\SWS\Square;
 
-use Square\SquareClient;
-use Square\Environment;
-use Square\Exceptions\ApiException;
-
 class SquareHelper
 {
-    private $client;
-    private $encryptionKey = 'your-secret-key'; // Define your encryption key
+    private $accessToken;
+    private $encryptionKey = 'EE8E1E71AA6E692DB5B7C6E2AEB7D';
+    private $apiBaseUrl = 'https://connect.squareupsandbox.com/v2'; // Base URL for Square API
 
-    public function __construct($accessToken)
+    public function __construct()
     {
-        $this->client = new SquareClient([
-            'accessToken' => $accessToken,
-            'environment' => Environment::SANDBOX, // or ::PRODUCTION
-        ]);
+        $this->accessToken = $this->get_access_token();
     }
 
-    public function isTokenValid()
+    public function squareApiRequest($endpoint, $method = 'GET', $body = null, $opToken = null)
     {
-        try {
-            $apiResponse = $this->client->getLocationsApi()->listLocations();
-            return $apiResponse->isSuccess();
-        } catch (ApiException $e) {
-            error_log("Received error while calling Square: " . $e->getMessage());
-            return false;
+        $token = isset($opToken) ? $opToken : $this->accessToken;
+        $url = $this->apiBaseUrl . $endpoint;
+        $headers = [
+            'Authorization: Bearer ' . $token,
+            'Content-Type: application/json',
+            'Accept: application/json'
+        ];
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        if ($body !== null) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+        }
+
+        $response = curl_exec($ch);
+        $error = curl_error($ch);
+        $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($error) {
+            error_log('Curl error: ' . $error);
+            return ['success' => false, 'error' => $error];
+        }
+
+        if ($statusCode >= 200 && $statusCode < 300) {
+            return ['success' => true, 'data' => json_decode($response, true)];
+        } else {
+            $errorMessage = "Square API request failed. Status Code: $statusCode. Response: $response";
+            error_log($errorMessage);
+            return ['success' => false, 'error' => $errorMessage];
         }
     }
 
+    /**
+     * Validates Access Token
+     */
+    public function isTokenValid($opToken = null)
+    {
+        if (isset($opToken)) {
+            $response = $this->squareApiRequest('/locations', 'GET', null,  $opToken);
+            return $response['success'] && $response['data'] !== null;
+        }
+        $response = $this->squareApiRequest('/locations');
+        return $response['success'] && $response['data'] !== null;
+    }
     /**
      * Encrypts the access token.
      *
@@ -40,10 +74,13 @@ class SquareHelper
     {
         $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
         $encrypted = openssl_encrypt($token, 'aes-256-cbc', $this->encryptionKey, 0, $iv);
+        if (false === $encrypted) {
+            error_log('Encryption failed.');
+            return false;
+        }
 
         return base64_encode($encrypted . '::' . $iv);
     }
-
     /**
      * Decrypts the access token.
      *
@@ -53,7 +90,13 @@ class SquareHelper
     public function decrypt_access_token($encryptedToken)
     {
         list($encrypted_data, $iv) = explode('::', base64_decode($encryptedToken), 2);
-        return openssl_decrypt($encrypted_data, 'aes-256-cbc', $this->encryptionKey, 0, $iv);
+        $decrypted = openssl_decrypt($encrypted_data, 'aes-256-cbc', $this->encryptionKey, 0, $iv);
+        if (false === $decrypted) {
+            error_log('Decryption failed.');
+            return false;
+        }
+
+        return $decrypted;
     }
 
 
@@ -61,12 +104,10 @@ class SquareHelper
     {
         $settings = get_option('sws_settings', []);
         $token = isset($settings['access_token']) ? $settings['access_token'] : null;
-
         if ($token) {
-            $decryptedToken = $this->decrypt_access_token($token);
-            return $decryptedToken;
+            return $this->decrypt_access_token($token);
         }
-
+        error_log('Access token not found in settings.');
         return null;
     }
 

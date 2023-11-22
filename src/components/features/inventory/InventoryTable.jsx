@@ -31,6 +31,7 @@ function reformatDataForTable(inventory) {
       categories: item.item_data.category_name,
       status: variation.imported,
       id: variation.id,
+      woocommerce_product_id: variation.woocommerce_product_id || null,
     }));
 
     const price = item.item_data.variations.map(
@@ -43,6 +44,8 @@ function reformatDataForTable(inventory) {
       sku: item.item_data.variations[0].item_variation_data.sku,
       id: item.id,
       name: item.item_data.name,
+      image: item.item_data.image_urls ? item.item_data.image_urls[0] : null,
+      woocommerce_product_id: item.woocommerce_product_id || null,
       type: item.item_data.variations.length > 1 ? "Variable" : "Simple",
       price:
         minAmount === maxAmount
@@ -103,13 +106,17 @@ const InventoryTable = ({ getInventory }) => {
           method: "POST",
           data: { product: invMatch },
         });
+
         response.forEach((res) => {
           if (res.status === "success") {
+            const wooID = res.product_id;
             const updatedInventory = inventory.map((item) => {
               if (item.id === product.id) {
                 return {
                   ...item,
                   status: "imported",
+                  imported: true,
+                  woocommerce_product_id: wooID,
                   ...(item.item_data.variations && {
                     item_data: {
                       ...item.item_data,
@@ -243,8 +250,49 @@ const InventoryTable = ({ getInventory }) => {
       canSort: true,
     },
     {
+      accessorKey: "image",
+      header: () => "",
+      enableSorting: false,
+      width: 50,
+      cell: ({ getValue }) => {
+        const value = getValue();
+        if (value) {
+          return (
+            <div className="flex items-center gap-2">
+              <img
+                src={value}
+                width={40}
+                height={40}
+                className="w-10 h-10 rounded object-cover flex items-center gap-2 shadow"
+              />
+            </div>
+          );
+        } else {
+          return (
+            <div className="flex items-center gap-2 w-10 h-10 rounded bg-gradient-to-tr from-gray-100 to-gray-50 flex items-center justify-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-gray-300"
+              >
+                <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                <line x1="7" y1="7" x2="7.01" y2="7" />
+              </svg>
+            </div>
+          );
+        }
+      },
+    },
+    {
       accessorKey: "name",
-      header: () => "Product Name",
+      header: () => "Name",
       canSort: true,
     },
     {
@@ -306,16 +354,28 @@ const InventoryTable = ({ getInventory }) => {
     },
     {
       id: "actions",
+      colSpan: 2,
       cell: ({ row }) => {
+        if (row.parentId) return <></>;
         return (
-          <button
-            type="button"
-            onClick={() => importProduct(row.original)}
-            className="rounded bg-indigo-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-            disabled={isImporting}
-          >
-            {row.original.status === true ? "Sync" : "Import"}
-          </button>
+          <div className="flex items-center justify-end gap-2">
+            {row.original.woocommerce_product_id && (
+              <a
+                className="rounded bg-purple-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-purple-500 hover:text-purple-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600 cursor-pointer"
+                href={`/wp-admin/post.php?post=${row.original.woocommerce_product_id}&action=edit`}
+              >
+                View Product
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => importProduct(row.original)}
+              disabled={isImporting}
+              className="rounded bg-indigo-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            >
+              {row.original.status === true ? "Sync" : "Import"}
+            </button>
+          </div>
         );
       },
     },
@@ -422,7 +482,7 @@ const InventoryTable = ({ getInventory }) => {
                       colSpan: header.colSpan,
                       className: "py-2 font-bold select-none",
                       style: {
-                        width: idx == 0 ? "50px" : "150px",
+                        width: idx == 0 ? "50px" : "auto",
                         cursor: header.column.getCanSort()
                           ? "pointer"
                           : "default",

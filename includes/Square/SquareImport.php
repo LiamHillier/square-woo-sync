@@ -3,38 +3,22 @@
 namespace Pixeldev\SWS\Square;
 
 use Pixeldev\SWS\Square\SquareHelper;
-use Square\SquareClient;
-use Square\Environment;
-use WooCommerce\WC_Product_Simple;
+
 
 class SquareImport extends SquareHelper
 {
 
-    private $client;
     public function __construct()
     {
-        $token = $this->get_access_token();
-        $this->client = new SquareClient([
-            'accessToken' => $token,
-            'environment' => Environment::SANDBOX, // or ::PRODUCTION
-        ]);
+        parent::__construct();
     }
 
-    public function get_access_token()
-    {
-        $settings = get_option('sws_settings', []);
-        $token = isset($settings['access_token']) ? $settings['access_token'] : null;
-
-        if ($token) {
-            $squareHelper = new SquareHelper($token);
-            $decryptedToken = $squareHelper->decrypt_access_token($token);
-            return $decryptedToken;
-        }
-
-        return null;
-    }
-
-
+    /**
+     * Imports products from Square to WooCommerce.
+     *
+     * @param array $square_products The products to import.
+     * @return array The results of the import process.
+     */
     public function import_products($square_products)
     {
         $results = [];
@@ -59,20 +43,23 @@ class SquareImport extends SquareHelper
     }
 
 
-
+    /**
+     * Maps a Square product to a WooCommerce product format.
+     *
+     * @param object $square_product The Square product to map.
+     * @return array The WooCommerce product data.
+     */
     private function map_square_product_to_woocommerce($square_product)
     {
-        // error_log(json_encode($square_product));
         $wc_product_data = [];
 
-        // Basic product details
+        // Map basic product details from Square to WooCommerce
         $wc_product_data['name'] = $square_product['item_data']['name'];
         $wc_product_data['description'] = $square_product['item_data']['description_plaintext'];
         $wc_product_data['type'] = count($square_product['item_data']['variations']) > 1 ? 'variable' : 'simple';
         $wc_product_data['sku'] = $square_product['item_data']['variations'][0]['item_variation_data']['sku'] . '-sws';
 
-        // Pricing, SKU, and variations for variable products
-
+        // Map pricing, SKU, and variations for variable products
         $wc_product_data['variations'] = [];
         foreach ($square_product['item_data']['variations'] as $variation) {
             $variation_data = [
@@ -82,7 +69,6 @@ class SquareImport extends SquareHelper
                 'attributes' => []
             ];
 
-            // Extracting attributes from the variation
             if (isset($variation['item_option_values'])) {
                 foreach ($variation['item_option_values'] as $option) {
                     $variation_data['attributes'][] = [
@@ -97,31 +83,28 @@ class SquareImport extends SquareHelper
 
         $wc_product_data['price'] = $square_product['item_data']['variations'][0]['item_variation_data']['price_money']['amount'] / 100;
 
-
-        // Additional mappings can be added as needed (e.g., categories, images, etc.)
-
         return $wc_product_data;
     }
 
 
+
+    /**
+     * Creates or updates a WooCommerce product based on the provided product data.
+     *
+     * @param array $wc_product_data The WooCommerce product data.
+     * @return int|bool The ID of the product if successful, or false on failure.
+     */
     private function create_or_update_woocommerce_product($wc_product_data)
     {
         try {
-
-            // Check if a product with the given SKU already exists in WooCommerce
             $product_id = wc_get_product_id_by_sku($wc_product_data['sku']);
-
-            // Determine the product type and create or load the appropriate product object
-            if ($wc_product_data['type'] === 'simple') {
-                $product = $product_id ? wc_get_product($product_id) : new \WC_Product_Simple();
-            } else {
-                $product = $product_id ? wc_get_product($product_id) : new \WC_Product_Variable();
-            }
+            $product = $product_id ? wc_get_product($product_id) : ($wc_product_data['type'] === 'simple' ? new \WC_Product_Simple() : new \WC_Product_Variable());
 
             // Set common product properties
             $product->set_name($wc_product_data['name']);
             $product->set_sku($wc_product_data['sku']);
             $product->set_description($wc_product_data['description']);
+
 
             if ($wc_product_data['type'] === 'variable') {
                 $all_attribute_options = [];
@@ -161,7 +144,6 @@ class SquareImport extends SquareHelper
 
                 $product->save(); // Save to get ID for variations
 
-                $existing_variations = $product->get_children();
                 foreach ($wc_product_data['variations'] as $variation_data) {
                     $variation_id = wc_get_product_id_by_sku($variation_data['sku']);
                     $variation = $variation_id ? new \WC_Product_Variation($variation_id) : new \WC_Product_Variation();
@@ -205,16 +187,21 @@ class SquareImport extends SquareHelper
                 }
             }
 
+            // Save the product and return its ID
             $product->save();
-            return $product->get_id(); // Return the product ID
-
+            return $product->get_id();
         } catch (\Exception $e) {
             error_log('Error creating/updating product: ' . $e->getMessage());
             return false; // Return false in case of error
         }
     }
 
-
+    /**
+     * Retrieves or creates a global WooCommerce attribute.
+     *
+     * @param string $attribute_name The name of the attribute.
+     * @return int|bool The attribute ID if successful, or false on failure.
+     */
     private function get_or_create_global_attribute($attribute_name)
     {
         $taxonomy = 'pa_' . wc_sanitize_taxonomy_name($attribute_name);
@@ -222,10 +209,10 @@ class SquareImport extends SquareHelper
         if (!taxonomy_exists($taxonomy)) {
             // Create the attribute if it doesn't exist
             $args = array(
-                'name'         => $attribute_name,
-                'slug'         => wc_sanitize_taxonomy_name($attribute_name),
-                'type'         => 'select',
-                'order_by'     => 'menu_order',
+                'name' => $attribute_name,
+                'slug' => wc_sanitize_taxonomy_name($attribute_name),
+                'type' => 'select',
+                'order_by' => 'menu_order',
                 'has_archives' => true,
             );
             $result = wc_create_attribute($args);
@@ -244,6 +231,13 @@ class SquareImport extends SquareHelper
         return $attribute_id;
     }
 
+    /**
+     * Retrieves or creates a WooCommerce attribute term.
+     *
+     * @param string $attribute_name The name of the attribute.
+     * @param string $term_name The name of the term.
+     * @return int|bool The term ID if successful, or false on failure.
+     */
     private function get_or_create_attribute_term($attribute_name, $term_name)
     {
         $taxonomy = 'pa_' . wc_sanitize_taxonomy_name($attribute_name);
@@ -273,11 +267,4 @@ class SquareImport extends SquareHelper
 
         return $term_id;
     }
-
-
-
-
-
-
-    // Additional methods for handling product variations, attributes, etc.
 }
