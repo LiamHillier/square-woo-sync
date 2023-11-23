@@ -170,6 +170,21 @@ final class SWS
      */
     public function activate()
     {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'sws_import_progress';
+        $charset_collate = $wpdb->get_charset_collate();
+    
+        $sql = "CREATE TABLE $table_name (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            product_id INT,
+            status VARCHAR(255),
+            message TEXT,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) $charset_collate;";
+    
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
     }
 
     /**

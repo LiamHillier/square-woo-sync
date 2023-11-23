@@ -10,6 +10,7 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import {
+  ArrowDownOnSquareStackIcon,
   ArrowPathIcon,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -89,71 +90,104 @@ const InventoryTable = ({ getInventory }) => {
   const [isImporting, setIsImporting] = useState(false);
   const dispatch = useDispatch();
   const inventory = useSelector((state) => state.inventory.items);
+  const [progress, setProgress] = useState(null);
+  const [sseConnection, setSseConnection] = useState(null);
 
-  const importProduct = async (product) => {
+  const importProduct = async (productArr) => {
     if (isImporting) {
       return;
     }
+    const evtSource = new EventSource(
+      "/wp-json/sws/v1/square-inventory/progress"
+    );
+
+    evtSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      setProgress(data);
+      console.log(data);
+      // Handle the data (update the UI or state)
+    };
+
+    evtSource.onerror = (err) => {
+      console.error("EventSource failed:", err);
+      evtSource.close();
+      // Handle errors here
+    };
+
+    // Save the connection in state to close it later
+    setSseConnection(evtSource);
+
     setIsImporting(true);
-    let id = toast.loading("Importing product");
-    setLoadingProductId(product.id); // Set loading state
-    const currentPageIndex = table.getState().pagination.pageIndex;
-    try {
+    let id = toast.loading("Importing products");
+    let inventoryMatch = [];
+    productArr.forEach((product) => {
+      setLoadingProductId(product.id); // Set loading state
       const invMatch = inventory.find((inv) => inv.id === product.id);
       if (invMatch) {
-        const response = await apiFetch({
-          path: "/sws/v1/square-inventory/import",
-          method: "POST",
-          data: { product: invMatch },
-        });
-
-        response.forEach((res) => {
-          if (res.status === "success") {
-            const wooID = res.product_id;
-            const updatedInventory = inventory.map((item) => {
-              if (item.id === product.id) {
-                return {
-                  ...item,
-                  status: "imported",
-                  imported: true,
-                  woocommerce_product_id: wooID,
-                  ...(item.item_data.variations && {
-                    item_data: {
-                      ...item.item_data,
-                      variations: item.item_data.variations.map(
-                        (variation) => ({
-                          ...variation,
-                          imported: true,
-                        })
-                      ),
-                    },
-                  }),
-                };
-              }
-              return item;
-            });
-
-            dispatch(setInventory(updatedInventory));
-
-            toast.update(id, {
-              render: "Product imported",
-              type: "success",
-              isLoading: false,
-              autoClose: 2000,
-              hideProgressBar: false,
-              closeOnClick: true,
-            });
-          } else {
-            toast.update(id, {
-              render: res.message,
-              type: "error",
-              isLoading: false,
-              autoClose: false,
-              closeOnClick: true,
-            });
-          }
-        });
+        inventoryMatch.push(invMatch);
       }
+    });
+    const currentPageIndex = table.getState().pagination.pageIndex;
+    try {
+      const response = await apiFetch({
+        path: "/sws/v1/square-inventory/import",
+        method: "POST",
+        data: { product: inventoryMatch },
+      });
+      response.forEach((res) => {
+        if (res.status === "success") {
+          const wooID = res.product_id;
+          const updatedInventory = inventory.map((inventoryItem) => {
+            // Find the corresponding item in inventoryMatch
+            const matchedItem = inventoryMatch.find(
+              (match) => match.id === inventoryItem.id
+            );
+
+            // If there's a match, update the item
+            if (matchedItem) {
+              return {
+                ...inventoryItem,
+                status: "imported",
+                imported: true,
+                woocommerce_product_id: wooID,
+                ...(inventoryItem.item_data.variations && {
+                  item_data: {
+                    ...inventoryItem.item_data,
+                    variations: inventoryItem.item_data.variations.map(
+                      (variation) => ({
+                        ...variation,
+                        imported: true,
+                      })
+                    ),
+                  },
+                }),
+              };
+            }
+            // If there's no match, return the item as is
+            return inventoryItem;
+          });
+
+          dispatch(setInventory(updatedInventory));
+
+          toast.update(id, {
+            render: "Product imported",
+            type: "success",
+            isLoading: false,
+            autoClose: 2000,
+            hideProgressBar: false,
+            closeOnClick: true,
+          });
+        } else {
+          toast.update(id, {
+            render: res.message,
+            type: "error",
+            isLoading: false,
+            autoClose: false,
+            closeOnClick: true,
+          });
+        }
+      });
+
       setLoadingProductId(null);
       setIsImporting(false);
     } catch (error) {
@@ -168,6 +202,7 @@ const InventoryTable = ({ getInventory }) => {
       setLoadingProductId(null);
       setIsImporting(false);
     } finally {
+      evtSource.close();
       table.setPageIndex(currentPageIndex);
     }
   };
@@ -369,7 +404,7 @@ const InventoryTable = ({ getInventory }) => {
             )}
             <button
               type="button"
-              onClick={() => importProduct(row.original)}
+              onClick={() => importProduct([row.original])}
               disabled={isImporting}
               className="rounded bg-indigo-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
             >
@@ -423,7 +458,7 @@ const InventoryTable = ({ getInventory }) => {
   return (
     <div>
       <div className="px-4 py-5 sm:px-6">
-        <div className="flex items-center justify-between">
+        <div className="grid grid-cols-3 gap-2 mb-4 items-center">
           <div className="flex flex-wrap items-center justify-start sm:flex-nowrap">
             <h2 className="text-base font-semibold leading-7 text-gray-900 ">
               Square Inventory
@@ -466,6 +501,19 @@ const InventoryTable = ({ getInventory }) => {
                 </svg>
               </kbd>
             </div>
+          </div>
+          <div className="flex justify-end items-center">
+            <button
+              type="button"
+              onClick={() => importProduct(reformattedData)}
+              className="relative inline-flex items-center rounded-md bg-indigo-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
+            >
+              <ArrowDownOnSquareStackIcon
+                className="-ml-0.5 mr-1.5 h-4 w-4 text-white"
+                aria-hidden="true"
+              />
+              <span>Import All</span>
+            </button>
           </div>
         </div>
       </div>

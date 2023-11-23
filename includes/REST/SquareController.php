@@ -10,6 +10,7 @@ use WP_REST_Server;
 use WP_REST_Response;
 use WP_REST_Request;
 use WP_Error;
+use Exception;
 
 
 class SquareController extends RESTController
@@ -49,6 +50,13 @@ class SquareController extends RESTController
                 'permission_callback' => [$this, 'check_permission']
             ]
         ]);
+        register_rest_route($this->namespace, '/' . $this->base . '/progress', [
+            [
+                'methods' => WP_REST_Server::READABLE,
+                'callback' => [$this, 'handle_sse_request'],
+                'permission_callback' => [$this, 'check_permission']
+            ]
+        ]);
     }
 
     private function get_token_and_validate()
@@ -66,6 +74,7 @@ class SquareController extends RESTController
 
         return $token;
     }
+
 
     /**
      * Retrieve woocommerce products
@@ -206,12 +215,170 @@ class SquareController extends RESTController
         $squareImport = new SquareImport();
 
         if ($token) {
-            $wooProduct = $squareImport->import_products(array($product));
+            $wooProduct = $squareImport->import_products($product);
+            $this->clear_progress_data();
             return rest_ensure_response($wooProduct);
         } else {
             return rest_ensure_response(new WP_Error(401, 'Access token not set'));
         }
-
         return rest_ensure_response(new WP_Error(401, 'Cant find access token'));
+    }
+
+    private function get_latest_row_id()
+    {
+        global $wpdb;
+    
+        // The table where progress data is stored
+        $table_name = $wpdb->prefix . 'sws_import_progress';
+    
+        // Query to retrieve the latest row ID
+        $query = "SELECT MAX(id) FROM $table_name";
+    
+        try {
+            $latest_row_id = $wpdb->get_var($query);
+    
+            // Check for DB errors
+            if ($wpdb->last_error) {
+                throw new Exception('Database error: ' . $wpdb->last_error);
+            }
+    
+            return (int) $latest_row_id;
+        } catch (Exception $e) {
+            // Log the error (or handle it in your preferred way)
+            error_log('Database error: ' . $e->getMessage());
+    
+            return 0; // Return 0 in case of an exception or error
+        }
+    }
+    
+
+    private function get_progress_data_for_row($rowId)
+    {
+        global $wpdb;
+    
+        // The table where progress data is stored
+        $table_name = $wpdb->prefix . 'sws_import_progress';
+    
+        // Query to retrieve progress data for the given row ID
+        $query = $wpdb->prepare("SELECT product_id, status, message FROM $table_name WHERE id = %d", $rowId);
+    
+        try {
+            $progress_data = $wpdb->get_row($query, ARRAY_A);
+    
+            // Check for DB errors
+            if ($wpdb->last_error) {
+                throw new Exception('Database error: ' . $wpdb->last_error);
+            }
+    
+            return $progress_data ?: [];
+        } catch (Exception $e) {
+            // Log the error (or handle it in your preferred way)
+            error_log('Database error: ' . $e->getMessage());
+    
+            return []; // Return an empty array in case of an exception or error
+        }
+    }
+    
+    
+
+
+    public function handle_sse_request(WP_REST_Request $request)
+    {
+        // Set the necessary headers for SSE
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('Connection: keep-alive');
+    
+        // Store the last known database row ID
+        $lastRowId = 0;
+    
+        while (true) {
+            // Check for new rows in the database
+            $newRowId = $this->get_latest_row_id();
+    
+            if ($newRowId > $lastRowId) {
+                $progress_data = $this->get_progress_data_for_row($newRowId);
+
+                if (!empty($progress_data)) {
+                    // Send a formatted SSE message
+                    $sse_message = "data: " . json_encode($progress_data) . "\n\n";
+                    echo $sse_message;
+                
+                    // Flush the output buffer to the client
+                    ob_flush();
+                    flush();
+                
+                    // Update the last known database row ID
+                    $lastRowId = $newRowId;
+                }
+            }
+    
+            // Sleep for a bit before checking for updates again (e.g., 1 second)
+            // sleep(1);
+        }
+    
+        // Close the connection (This line will never be reached)
+        die();
+    }
+    
+
+
+    /**
+     * Retrieves the latest progress data from the database.
+     *
+     * @return array|bool
+     */
+    private function get_progress_data()
+    {
+        global $wpdb;
+
+        // The table where progress data is stored
+        $table_name = $wpdb->prefix . 'sws_import_progress';
+
+        // Query to retrieve the latest progress
+        $query = "SELECT * FROM $table_name ORDER BY timestamp DESC LIMIT 1";
+
+        try {
+            // Execute the query
+            $latest_progress = $wpdb->get_row($query, ARRAY_A);
+
+            // Check for DB errors
+            if ($wpdb->last_error) {
+                throw new Exception('Database error: ' . $wpdb->last_error);
+            }
+
+            return $latest_progress ?: false; // Return false if no data found
+        } catch (Exception $e) {
+            // Log the error (or handle it in your preferred way)
+            error_log('Database error: ' . $e->getMessage());
+
+            return false; // Return false in case of an exception
+        }
+    }
+
+
+    /**
+     * Clears the progress data from the database.
+     *
+     * @return void|WP_Error
+     */
+    private function clear_progress_data()
+    {
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'sws_import_progress';
+        $query = "DELETE FROM $table_name";
+
+        try {
+            $wpdb->query($query);
+
+            // Check for DB errors
+            if ($wpdb->last_error) {
+                throw new Exception('Database error: ' . $wpdb->last_error);
+            }
+        } catch (Exception $e) {
+            // Return the error as a WP_Error object
+            return new WP_Error('db_error', $e->getMessage());
+        }
     }
 }
