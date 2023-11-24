@@ -68,7 +68,6 @@ class SettingsController extends RESTController
                     'methods'             => WP_REST_Server::EDITABLE,
                     'callback'            => [$this, 'update_settings'],
                     'permission_callback' => [$this, 'check_permission'],
-                    'args'                => $this->get_endpoint_args_for_item_schema(true),
                 ],
             ]
         );
@@ -118,25 +117,41 @@ class SettingsController extends RESTController
         return rest_ensure_response(['message' => 'Access token removed successfully']);
     }
 
-    /**
-     * Retrieves the plugin settings.
-     *
-     * @param WP_REST_Request $request Request object.
-     * @return WP_REST_Response Response object.
-     */
+    
     public function get_settings(WP_REST_Request $request): WP_REST_Response
     {
         $settings = get_option('sws_settings', []);
 
-        $requested_setting = $request->get_param('setting');
-        if (!empty($requested_setting) && isset($settings[$requested_setting])) {
-            $value = $settings[$requested_setting];
-            return rest_ensure_response([$requested_setting => $value]);
+        if ($settings === false) {
+            // Error occurred while retrieving settings.
+            $error_message = 'Error retrieving plugin settings.';
+            $response = new WP_REST_Response(['error' => $error_message], 500);
+        } else {
+            $requested_setting = $request->get_param('setting');
+            if (!empty($requested_setting) && isset($settings[$requested_setting])) {
+                $value = $settings[$requested_setting];
+                // Check if the requested setting is "access_token"
+                if ($requested_setting === 'access_token') {
+                    // Exclude "access_token" from the response
+                    $response = new WP_REST_Response([], 200);
+                } else {
+                    $response = new WP_REST_Response([$requested_setting => $value], 200);
+                }
+            } else {
+                // Exclude "access_token" from the response if no specific setting is requested
+                unset($settings['access_token']);
+                $response = new WP_REST_Response($settings, 200);
+            }
         }
 
-        // Return an empty response if no specific setting is requested
-        return rest_ensure_response(new \stdClass()); // Corrected reference to stdClass
+        // Set the content type header to JSON.
+        $response->set_headers(['Content-Type' => 'application/json']);
+
+        return $response;
     }
+
+
+
 
 
 
@@ -149,14 +164,33 @@ class SettingsController extends RESTController
     public function update_settings(WP_REST_Request $request)
     {
         $params = $request->get_json_params();
+
+        if (empty($params)) {
+            $error_response = new WP_Error('empty_request', 'No settings provided in the request.', ['status' => 400]);
+            return rest_ensure_response($error_response);
+        }
+
         $current_settings = get_option('sws_settings', []);
 
+        if ($current_settings === false) {
+            $error_response = new WP_Error('get_option_error', 'Failed to retrieve current settings.', ['status' => 500]);
+            return rest_ensure_response($error_response);
+        }
+
+        $updated = [];
         foreach ($params as $key => $value) {
             $current_settings[$key] = $value;
+            $updated[$key] = $value;
         }
 
         update_option('sws_settings', $current_settings);
 
-        return rest_ensure_response($current_settings);
+
+        if ($updated === false) {
+            $error_response = new WP_Error('update_option_error', 'Failed to update settings.', ['status' => 500]);
+            return rest_ensure_response($error_response);
+        }
+
+        return rest_ensure_response($updated);
     }
 }

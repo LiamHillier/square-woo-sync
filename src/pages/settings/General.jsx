@@ -1,5 +1,7 @@
-import { useState } from "@wordpress/element";
+import { useEffect, useState } from "@wordpress/element";
 import { Dialog, Switch } from "@headlessui/react";
+import { toast } from "react-toastify";
+import apiFetch from "@wordpress/api-fetch";
 import { Bars3Icon } from "@heroicons/react/20/solid";
 import {
   BellIcon,
@@ -38,9 +40,57 @@ const secondaryNavigation = [
 ];
 
 export default function Settings() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [automaticTimezoneEnabled, setAutomaticTimezoneEnabled] =
-    useState(true);
+  const [settings, setSettings] = useState({ woo_suffix: "sws" });
+
+  useEffect(() => {
+    const getSettings = async () => {
+      apiFetch({ path: "/sws/v1/settings", method: "GET" })
+        .then((res) => {
+          setSettings(res);
+        })
+        .catch((err) => {
+          toast({
+            render: "Failed to update settings: " + err.message,
+            type: "error",
+            isLoading: false,
+            autoClose: false,
+            closeOnClick: true,
+          });
+        });
+    };
+    getSettings();
+  }, []);
+
+  const updateSettings = async (key, val) => {
+    console.log(key, val);
+    const id = toast.loading(`Updating setting: ${key} to ${val}`);
+    try {
+      const result = await apiFetch({
+        path: "/sws/v1/settings", // Updated path
+        method: "POST",
+        data: { [key]: val },
+      });
+      if (result) {
+        toast.update(id, {
+          render: "settings updated successfully",
+          type: "success",
+          isLoading: false,
+          autoClose: 2000,
+          hideProgressBar: false,
+          closeOnClick: true,
+        });
+      }
+      console.log(result);
+    } catch (err) {
+      toast.update(id, {
+        render: "Failed to update settings: " + err.message,
+        type: "error",
+        isLoading: false,
+        autoClose: false,
+        closeOnClick: true,
+      });
+    }
+  };
 
   return (
     <>
@@ -81,7 +131,13 @@ export default function Settings() {
 
         <main className="px-4 sm:px-6 lg:flex-auto lg:px-0">
           <AccessToken />
-          <SKUSuffix />
+          <SKUSuffix
+            title="Are you sure you want to change the Woo SKU suffix?"
+            description="Changing the Woo SKU suffix will require you to delete and re-import all the products you wish to be synced with Square"
+            suffix={settings.woo_suffix}
+            setSuffix={(val) => setSettings({ ...settings, woo_suffix: val })}
+            onConfirm={() => updateSettings("woo_suffix", settings.woo_suffix)}
+          />
           <Webhook />
           <div className="px-4 pt-5 sm:px-6"></div>
           <div className="px-4 pb-5 sm:px-6">

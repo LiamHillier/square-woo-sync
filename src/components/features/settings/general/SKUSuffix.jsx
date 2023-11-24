@@ -1,4 +1,21 @@
-export default function SKUSuffix() {
+import { useState } from "@wordpress/element";
+import withAlertDialog from "../../../AlertDialog";
+
+const SKUSuffixComp = ({ setIsOpen, suffix, setSuffix }) => {
+  if (suffix === undefined) {
+    suffix = "sws";
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault(); // Prevent the default form submission behavior
+
+    // Check if the parsed value is greater than 0
+    if (suffix && suffix.length > 0) {
+      setIsOpen(true);
+    } else {
+      alert("Suffix must have at least 1 character.");
+    }
+  };
   return (
     <div className="px-4 py-5 sm:p-6">
       <h3 className="text-base font-semibold leading-6 text-gray-900">
@@ -10,22 +27,24 @@ export default function SKUSuffix() {
           before any syncing of products between Square and Woocommerce.
           Changing the suffix after it any previous imports/syncs requires
           products to be deleted and re-imported. Read the following
-          documentation on why this is requried: <br></br>
+          documentation on why this is required: <br></br>
           <a href="#" className="underline text-indigo-500">
             Changing the SKU Suffix
           </a>
         </p>
       </div>
 
-      <form className="mt-5 sm:flex sm:items-center">
+      <form className="mt-5 sm:flex sm:items-center" onSubmit={handleSubmit}>
         <div className="w-full sm:max-w-xs">
           <label htmlFor="accessToken" className="sr-only">
             Access Token
           </label>
           <input
             type="text"
-            name="accessToken"
-            id="accessToken"
+            name="suffix"
+            value={suffix}
+            onChange={(e) => setSuffix(e.target.value)}
+            id="suffix"
             className="block w-full !rounded-lg !border-0 !py-1.5 text-gray-900 !ring-1 !ring-inset !ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm !px-4 !leading-6"
             placeholder="sws"
           />
@@ -39,4 +58,7 @@ export default function SKUSuffix() {
       </form>
     </div>
   );
-}
+};
+
+const SKUSuffix = withAlertDialog(SKUSuffixComp);
+export default SKUSuffix;
