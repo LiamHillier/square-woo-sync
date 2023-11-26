@@ -66,6 +66,12 @@ const InventoryTable = ({ getInventory }) => {
       source.close();
     };
 
+    // Additional handling for server-sent custom events
+    source.addEventListener("server-timeout", (event) => {
+      console.warn("Server timeout:", event.data);
+      source.close();
+    });
+
     setSseConnection(source);
     return source;
   }

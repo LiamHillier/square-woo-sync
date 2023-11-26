@@ -47,7 +47,6 @@ class SquareImport extends SquareHelper
 
     private function update_import_progress($product_id, $square_id, $status, $message,)
     {
-        error_log($square_id);
         global $wpdb;
         $wpdb->insert($wpdb->prefix . 'sws_import_progress', [
             'product_id' => $product_id,
@@ -340,7 +339,6 @@ class SquareImport extends SquareHelper
     private function get_or_create_global_attribute($attribute_name)
     {
         $taxonomy = 'pa_' . wc_sanitize_taxonomy_name($attribute_name);
-        error_log($taxonomy);
 
         if (!taxonomy_exists($taxonomy)) {
             // Create the attribute if it doesn't exist

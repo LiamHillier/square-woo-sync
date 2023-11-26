@@ -281,54 +281,63 @@ class SquareController extends RESTController
     }
 
 
-
-
     public function handle_sse_request(WP_REST_Request $request)
     {
         // Set the necessary headers for SSE
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
         header('Connection: keep-alive');
-
+    
         // Start output buffering
         ob_start();
-
+    
         // Store the last known database row ID
         $lastRowId = 0;
-
+    
+        // Add a safety mechanism to prevent infinite loop
+        $startTime = time();
+        $maxExecutionTime = 60 * 5; // 5 minutes
+    
         while (true) {
+            // Check for script execution time to prevent server overload
+            if (time() - $startTime > $maxExecutionTime) {
+                echo "event: server-timeout\ndata: Server timeout reached\n\n";
+                break;
+            }
+    
             // Check for new rows in the database
             $newRowId = $this->get_latest_row_id();
-
+    
             if ($newRowId > $lastRowId) {
                 $progress_data = $this->get_progress_data_for_row($newRowId);
-
+    
                 if (!empty($progress_data)) {
                     // Send a formatted SSE message
                     $sse_message = "data: " . json_encode($progress_data) . "\n\n";
                     echo $sse_message;
-
+    
                     // Flush the output buffer to the client if it's active
                     if (ob_get_length()) {
                         ob_flush();
                         flush();
                     }
-
+    
                     // Update the last known database row ID
                     $lastRowId = $newRowId;
                 }
             }
-
-            // // Sleep for a bit before checking for updates again (e.g., 1 second)
-            // sleep(0);
+    
+            // Sleep for a bit before checking for updates again (e.g., 1 second)
+            sleep(1);
         }
-
+    
         // End output buffering
         ob_end_flush();
-
-        // Close the connection (This line will never be reached)
+    
+        // Close the connection
         die();
     }
+    
 
 
 
