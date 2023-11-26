@@ -26,14 +26,15 @@ class SquareImport extends SquareHelper
         foreach ($square_products as $square_product) {
             try {
                 $wc_product_data = $this->map_square_product_to_woocommerce($square_product);
+
                 $product_id = $this->create_or_update_woocommerce_product($wc_product_data);
 
                 if ($product_id) {
-                    $results[] = ['status' => 'success', 'product_id' => $product_id, 'message' => 'Product imported successfully'];
-                    $this->update_import_progress($product_id, 'success', 'Product import successfully');
+                    $results[] = ['status' => 'success', 'product_id' => $product_id, 'square_id' => $square_product['id'], 'message' => 'Product imported successfully'];
+                    $this->update_import_progress($product_id, $square_product['id'], 'success', 'Product import successfully');
                 } else {
-                    $results[] = ['status' => 'failure', 'product_id' => null, 'message' => 'Failed to import product'];
-                    $this->update_import_progress(null, 'failure', 'Failed to import product');
+                    $results[] = ['status' => 'failure', 'product_id' => null, 'square_id' => $square_product['id'], 'message' => 'Failed to import product'];
+                    $this->update_import_progress(null, $square_product['id'], 'failure', 'Failed to import product');
                 }
             } catch (\Exception $e) {
                 error_log('Error importing product: ' . $e->getMessage());
@@ -44,11 +45,13 @@ class SquareImport extends SquareHelper
         return $results;
     }
 
-    private function update_import_progress($product_id, $status, $message)
+    private function update_import_progress($product_id, $square_id, $status, $message,)
     {
+        error_log($square_id);
         global $wpdb;
         $wpdb->insert($wpdb->prefix . 'sws_import_progress', [
             'product_id' => $product_id,
+            'square_id' => $square_id,
             'status'     => $status,
             'message'    => $message,
             'timestamp'  => current_time('mysql')
@@ -138,6 +141,8 @@ class SquareImport extends SquareHelper
         require_once(ABSPATH . 'wp-admin/includes/file.php');
         require_once(ABSPATH . 'wp-admin/includes/image.php');
 
+
+
         // Check if the image already exists in the media library
         $existing_image_id = $this->find_existing_image_id($image_url);
         if ($existing_image_id) {
@@ -204,12 +209,14 @@ class SquareImport extends SquareHelper
 
             // Set the first image as the featured image and the rest as the gallery
             if (!empty($wc_product_data['image_ids'])) {
-                update_post_meta($product_id, '_thumbnail_id', array_shift($wc_product_data['image_ids']));
+                $featured_image_id = array_shift($wc_product_data['image_ids']);
+                $product->set_image_id($featured_image_id); // Set featured image
 
                 if (!empty($wc_product_data['image_ids'])) {
-                    update_post_meta($product_id, '_product_image_gallery', implode(',', $wc_product_data['image_ids']));
+                    $product->set_gallery_image_ids($wc_product_data['image_ids']); // Set gallery images
                 }
             }
+
 
 
             if ($wc_product_data['type'] === 'variable') {
@@ -302,6 +309,28 @@ class SquareImport extends SquareHelper
         }
     }
 
+
+    private function ensure_taxonomy_exists($attribute_name)
+    {
+        $taxonomy = 'pa_' . wc_sanitize_taxonomy_name($attribute_name);
+        if (!taxonomy_exists($taxonomy)) {
+            // Register the taxonomy
+            register_taxonomy($taxonomy, 'product', array(
+                'label' => $attribute_name,
+                'public' => true,
+                'show_ui' => true,
+                'show_in_quick_edit' => false,
+                'show_admin_column' => true,
+                'hierarchical' => false,
+                'show_in_menu' => true,
+            ));
+
+            // Clear the cache to ensure the new taxonomy is immediately available
+            delete_option('woocommerce_attribute_taxonomies');
+            wp_cache_flush();
+        }
+    }
+
     /**
      * Retrieves or creates a global WooCommerce attribute.
      *
@@ -311,6 +340,7 @@ class SquareImport extends SquareHelper
     private function get_or_create_global_attribute($attribute_name)
     {
         $taxonomy = 'pa_' . wc_sanitize_taxonomy_name($attribute_name);
+        error_log($taxonomy);
 
         if (!taxonomy_exists($taxonomy)) {
             // Create the attribute if it doesn't exist
@@ -346,28 +376,18 @@ class SquareImport extends SquareHelper
      */
     private function get_or_create_attribute_term($attribute_name, $term_name)
     {
+        $this->ensure_taxonomy_exists($attribute_name);
         $taxonomy = 'pa_' . wc_sanitize_taxonomy_name($attribute_name);
-
-        // Ensure taxonomy exists
-        if (!taxonomy_exists($taxonomy)) {
-            error_log("Taxonomy does not exist: {$taxonomy}");
-            return false;
-        }
 
         $term = get_term_by('name', $term_name, $taxonomy);
         if (!$term) {
-            // Create the term if it doesn't exist
             $result = wp_insert_term($term_name, $taxonomy);
-
             if (is_wp_error($result)) {
                 error_log('Error creating term: ' . $result->get_error_message());
                 return false;
             }
-
-            // wp_insert_term returns an array with the term ID
             $term_id = $result['term_id'];
         } else {
-            // If the term exists, get_term_by returns an object, so we use $term->term_id
             $term_id = $term->term_id;
         }
 

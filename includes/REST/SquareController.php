@@ -212,12 +212,12 @@ class SquareController extends RESTController
         }
 
         $product =  $request->get_param('product');
-        error_log(json_encode($product));
+
         $squareImport = new SquareImport();
 
         if ($token) {
-            $wooProduct = $squareImport->import_products($product);
             $this->clear_progress_data();
+            $wooProduct = $squareImport->import_products($product);
             return rest_ensure_response($wooProduct);
         } else {
             return rest_ensure_response(new WP_Error(401, 'Access token not set'));
@@ -228,59 +228,59 @@ class SquareController extends RESTController
     private function get_latest_row_id()
     {
         global $wpdb;
-    
+
         // The table where progress data is stored
         $table_name = $wpdb->prefix . 'sws_import_progress';
-    
+
         // Query to retrieve the latest row ID
         $query = "SELECT MAX(id) FROM $table_name";
-    
+
         try {
             $latest_row_id = $wpdb->get_var($query);
-    
+
             // Check for DB errors
             if ($wpdb->last_error) {
                 throw new Exception('Database error: ' . $wpdb->last_error);
             }
-    
+
             return (int) $latest_row_id;
         } catch (Exception $e) {
             // Log the error (or handle it in your preferred way)
             error_log('Database error: ' . $e->getMessage());
-    
+
             return 0; // Return 0 in case of an exception or error
         }
     }
-    
+
 
     private function get_progress_data_for_row($rowId)
     {
         global $wpdb;
-    
+
         // The table where progress data is stored
         $table_name = $wpdb->prefix . 'sws_import_progress';
-    
+
         // Query to retrieve progress data for the given row ID
-        $query = $wpdb->prepare("SELECT product_id, status, message FROM $table_name WHERE id = %d", $rowId);
-    
+        $query = $wpdb->prepare("SELECT product_id, square_id, status, message FROM $table_name WHERE id = %d", $rowId);
+
         try {
             $progress_data = $wpdb->get_row($query, ARRAY_A);
-    
+
             // Check for DB errors
             if ($wpdb->last_error) {
                 throw new Exception('Database error: ' . $wpdb->last_error);
             }
-    
+
             return $progress_data ?: [];
         } catch (Exception $e) {
             // Log the error (or handle it in your preferred way)
             error_log('Database error: ' . $e->getMessage());
-    
+
             return []; // Return an empty array in case of an exception or error
         }
     }
-    
-    
+
+
 
 
     public function handle_sse_request(WP_REST_Request $request)
@@ -289,14 +289,17 @@ class SquareController extends RESTController
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
         header('Connection: keep-alive');
-    
+
+        // Start output buffering
+        ob_start();
+
         // Store the last known database row ID
         $lastRowId = 0;
-    
+
         while (true) {
             // Check for new rows in the database
             $newRowId = $this->get_latest_row_id();
-    
+
             if ($newRowId > $lastRowId) {
                 $progress_data = $this->get_progress_data_for_row($newRowId);
 
@@ -304,24 +307,30 @@ class SquareController extends RESTController
                     // Send a formatted SSE message
                     $sse_message = "data: " . json_encode($progress_data) . "\n\n";
                     echo $sse_message;
-                
-                    // Flush the output buffer to the client
-                    ob_flush();
-                    flush();
-                
+
+                    // Flush the output buffer to the client if it's active
+                    if (ob_get_length()) {
+                        ob_flush();
+                        flush();
+                    }
+
                     // Update the last known database row ID
                     $lastRowId = $newRowId;
                 }
             }
-    
-            // Sleep for a bit before checking for updates again (e.g., 1 second)
-            // sleep(1);
+
+            // // Sleep for a bit before checking for updates again (e.g., 1 second)
+            // sleep(0);
         }
-    
+
+        // End output buffering
+        ob_end_flush();
+
         // Close the connection (This line will never be reached)
         die();
     }
-    
+
+
 
 
     /**

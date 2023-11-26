@@ -7,207 +7,132 @@ import {
   getPaginationRowModel,
   getFilteredRowModel,
   getExpandedRowModel,
-  flexRender,
 } from "@tanstack/react-table";
 import {
   ArrowDownOnSquareStackIcon,
   ArrowPathIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  ChevronUpIcon,
 } from "@heroicons/react/24/outline";
-import { classNames } from "../../../utils/classHelper";
 import DebouncedInput from "../../DebouncedInput";
 import apiFetch from "@wordpress/api-fetch";
 import { useSelector, useDispatch } from "react-redux";
 import { setInventory } from "../../../redux/inventorySlice";
-
-function reformatDataForTable(inventory) {
-  return inventory.map((item) => {
-    const variations = item.item_data.variations.map((variation) => ({
-      sku: variation.item_variation_data.sku,
-      name: variation.item_variation_data.name, // Assuming you want to use the main item's name
-      type: "variation",
-      price: variation.item_variation_data.price_money.amount / 100,
-      categories: item.item_data.category_name,
-      status: variation.imported,
-      id: variation.id,
-      woocommerce_product_id: variation.woocommerce_product_id || null,
-    }));
-
-    const price = item.item_data.variations.map(
-      (v) => v.item_variation_data.price_money.amount / 100
-    );
-    let minAmount = Math.min(...price);
-    let maxAmount = Math.max(...price);
-
-    return {
-      sku: item.item_data.variations[0].item_variation_data.sku,
-      id: item.id,
-      name: item.item_data.name,
-      image: item.item_data.image_urls ? item.item_data.image_urls[0] : null,
-      woocommerce_product_id: item.woocommerce_product_id || null,
-      type: item.item_data.variations.length > 1 ? "Variable" : "Simple",
-      price:
-        minAmount === maxAmount
-          ? `$${minAmount}`
-          : `$${minAmount} - $${maxAmount}`,
-      categories: item.item_data.category_name,
-      status:
-        item.item_data.variations.length > 1
-          ? variations.some((vari) => vari.status) &&
-            !variations.every((vari) => vari.status)
-            ? "partial"
-            : variations.every((vari) => vari.status)
-            ? true
-            : false
-          : item.imported,
-      ...(variations.length > 1 && { subRows: variations }),
-    };
-  });
-}
-
-const filterRows = (row, id, value) => {
-  // Check for the existence of 'values' and then 'id' in the main row
-  const mainRowMatch = row.getValue(id)
-    ? row.getValue(id).toString().toLowerCase().includes(value.toLowerCase())
-    : false;
-
-  // Check if any subrow matches the filter value
-  const subRowMatch =
-    row.subRows &&
-    row.subRows.some((subRow) => {
-      const subRowValue = subRow.getValue(id);
-      return subRowValue
-        ? subRowValue.toString().toLowerCase().includes(value.toLowerCase())
-        : false;
-    });
-  return mainRowMatch || subRowMatch;
-};
+import TableHeader from "./table/TableHeader";
+import TableRow from "./table/TableRow";
+import PaginationControls from "./table/PaginationControls";
+import { reformatDataForTable } from "../../../utils/formatTableData";
+import { filterRows } from "../../../utils/filterRows";
 
 const InventoryTable = ({ getInventory }) => {
   const [loadingProductId, setLoadingProductId] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
   const dispatch = useDispatch();
   const inventory = useSelector((state) => state.inventory.items);
-  const [progress, setProgress] = useState(null);
+  const [progress, setProgress] = useState([]);
   const [sseConnection, setSseConnection] = useState(null);
 
   const importProduct = async (productArr) => {
     if (isImporting) {
       return;
     }
-    const evtSource = new EventSource(
-      "/wp-json/sws/v1/square-inventory/progress"
-    );
-
-    evtSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setProgress(data);
-      console.log(data);
-      // Handle the data (update the UI or state)
-    };
-
-    evtSource.onerror = (err) => {
-      console.error("EventSource failed:", err);
-      evtSource.close();
-      // Handle errors here
-    };
-
-    // Save the connection in state to close it later
-    setSseConnection(evtSource);
-
+    setProgress([]);
     setIsImporting(true);
-    let id = toast.loading("Importing products");
-    let inventoryMatch = [];
-    productArr.forEach((product) => {
-      setLoadingProductId(product.id); // Set loading state
-      const invMatch = inventory.find((inv) => inv.id === product.id);
-      if (invMatch) {
-        inventoryMatch.push(invMatch);
-      }
-    });
-    const currentPageIndex = table.getState().pagination.pageIndex;
+    const toastId = toast.loading("Importing products");
+    setLoadingProductId(productArr[0]?.id); // Assuming you want to show the loading state for the first product
+    let evtSource; // Declare evtSource at a higher scope
     try {
-      const response = await apiFetch({
-        path: "/sws/v1/square-inventory/import",
-        method: "POST",
-        data: { product: inventoryMatch },
-      });
-      response.forEach((res) => {
-        if (res.status === "success") {
-          const wooID = res.product_id;
-          const updatedInventory = inventory.map((inventoryItem) => {
-            // Find the corresponding item in inventoryMatch
-            const matchedItem = inventoryMatch.find(
-              (match) => match.id === inventoryItem.id
-            );
+      evtSource = initializeEventSource();
+      const res = await processProductImports(productArr);
 
-            // If there's a match, update the item
-            if (matchedItem) {
-              return {
-                ...inventoryItem,
-                status: "imported",
-                imported: true,
-                woocommerce_product_id: wooID,
-                ...(inventoryItem.item_data.variations && {
-                  item_data: {
-                    ...inventoryItem.item_data,
-                    variations: inventoryItem.item_data.variations.map(
-                      (variation) => ({
-                        ...variation,
-                        imported: true,
-                      })
-                    ),
-                  },
-                }),
-              };
-            }
-            // If there's no match, return the item as is
-            return inventoryItem;
-          });
-
-          dispatch(setInventory(updatedInventory));
-
-          toast.update(id, {
-            render: "Product imported",
-            type: "success",
-            isLoading: false,
-            autoClose: 2000,
-            hideProgressBar: false,
-            closeOnClick: true,
-          });
-        } else {
-          toast.update(id, {
-            render: res.message,
-            type: "error",
-            isLoading: false,
-            autoClose: false,
-            closeOnClick: true,
-          });
-        }
-      });
-
-      setLoadingProductId(null);
-      setIsImporting(false);
+      const updatedInventory = updateInventoryItems(res);
+      dispatch(setInventory(updatedInventory));
+      toast.update(toastId, createToastConfig("success", "Product imported"));
     } catch (error) {
-      console.error(error);
-      toast.update(id, {
-        render: error.message,
-        type: "error",
-        isLoading: false,
-        autoClose: false,
-        closeOnClick: true,
-      });
+      console.error("Import Product Error:", error);
+      toast.update(toastId, createToastConfig("error", error.message));
+    } finally {
       setLoadingProductId(null);
       setIsImporting(false);
-    } finally {
-      evtSource.close();
-      table.setPageIndex(currentPageIndex);
+      evtSource?.close(); // Close EventSource if it's initialized
+      resetTablePageIndex();
     }
   };
 
-  // Data and columns configuration
+  function initializeEventSource() {
+    const source = new EventSource("/wp-json/sws/v1/square-inventory/progress");
+
+    source.onmessage = (event) => handleEventSourceMessage(event);
+    source.onerror = (err) => {
+      console.error("EventSource failed:", err);
+      source.close();
+    };
+
+    setSseConnection(source);
+    return source;
+  }
+
+  function handleEventSourceMessage(event) {
+    const data = JSON.parse(event.data);
+    setProgress([...progress, data]);
+  }
+
+  function updateInventoryItems(data) {
+    return inventory.map((item) => {
+      const matches = data.some((res) => res.square_id === item.id);
+      if (matches) {
+        const matchingData = data.find((res) => res.square_id === item.id);
+        return updateInventoryItem(item, matchingData.product_id);
+      }
+      return item;
+    });
+  }
+
+  function updateInventoryItem(item, wooID) {
+    return {
+      ...item,
+      status: "imported",
+      imported: true,
+      woocommerce_product_id: wooID,
+      ...(item.item_data.variations && {
+        item_data: {
+          ...item.item_data,
+          variations: item.item_data.variations.map((variation) => ({
+            ...variation,
+            imported: true,
+          })),
+        },
+      }),
+    };
+  }
+
+  async function processProductImports(productArr) {
+    const inventoryMatches = productArr
+      .map((product) => {
+        return inventory.find((inv) => inv.id === product.id);
+      })
+      .filter(Boolean);
+
+    return await apiFetch({
+      path: "/sws/v1/square-inventory/import",
+      method: "POST",
+      data: { product: inventoryMatches },
+    });
+  }
+
+  function createToastConfig(type, message) {
+    return {
+      render: message,
+      type: type,
+      isLoading: false,
+      autoClose: type === "success" ? 2000 : false,
+      closeOnClick: true,
+    };
+  }
+
+  function resetTablePageIndex() {
+    const currentPageIndex = table.getState().pagination.pageIndex;
+    table.setPageIndex(currentPageIndex);
+  }
+  // Data and columns configutraion
   const columns = [
     {
       id: "expander",
@@ -519,156 +444,20 @@ const InventoryTable = ({ getInventory }) => {
       </div>
       <div className="sm:px-6 lg:px-8 relative overflow-hidden w-full">
         <table className="w-full min-w-full whitespace-nowrap text-left bg-white">
-          <thead className="border-b border-gray-900/10 text-sm leading-6 text-gray-900">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header, idx) => (
-                  <th
-                    {...{
-                      onClick: header.column.getToggleSortingHandler(),
-                      key: header.id,
-                      colSpan: header.colSpan,
-                      className: "py-2 font-bold select-none",
-                      style: {
-                        width: idx == 0 ? "50px" : "auto",
-                        cursor: header.column.getCanSort()
-                          ? "pointer"
-                          : "default",
-                      },
-                    }}
-                  >
-                    {header.isPlaceholder ? null : (
-                      <div className="flex items-end gap-1 leading-none capitalize">
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                        <span>
-                          {header.column.getIsSorted() ? (
-                            header.column.getIsSorted() === "desc" ? (
-                              <ChevronDownIcon className="w-3 h-3" />
-                            ) : (
-                              <ChevronUpIcon className="w-3 h-3" />
-                            )
-                          ) : header.column.getCanSort() ? (
-                            <ChevronRightIcon className="w-3 h-3" />
-                          ) : (
-                            ""
-                          )}
-                        </span>
-                      </div>
-                    )}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
+          <TableHeader table={table} />
           <tbody className="divide-y divide-gray-200">
-            {table.getRowModel().rows.map((row) => {
-              const isSubRow = row.original.type === "variation";
-              const isExpanded = row.getIsExpanded();
-              const isLoading = row.original.id === loadingProductId;
-
-              const rowClassNames = classNames(
-                isSubRow ? "bg-indigo-50" : "", // Example style for sub-rows
-                isLoading ? "bg-gray-100" : "", // Style for loading rows
-                "py-4 wrap"
-              );
-
-              return (
-                <tr
-                  key={row.id}
-                  className={classNames(
-                    rowClassNames,
-                    isExpanded ? "bg-indigo-300" : ""
-                  )}
-                >
-                  {row.getVisibleCells().map((cell, idx) => {
-                    return (
-                      <td
-                        key={cell.id}
-                        className={`py-4 wrap text-gray-600 ${
-                          idx === row.getVisibleCells().length - 1
-                            ? "text-right pr-4"
-                            : "text-left"
-                        } `}
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
+            {table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                row={row}
+                loadingProductId={loadingProductId}
+              />
+            ))}
           </tbody>
         </table>
       </div>
-
       <hr />
-      <div className="flex items-center gap-2 px-4 py-5 sm:px-6">
-        <button
-          className="border rounded p-1"
-          onClick={() => table.setPageIndex(0)}
-          disabled={!table.getCanPreviousPage()}
-        >
-          {"<<"}
-        </button>
-        <button
-          className="border rounded p-1"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-        >
-          {"<"}
-        </button>
-        <button
-          className="border rounded p-1"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-        >
-          {">"}
-        </button>
-        <button
-          className="border rounded p-1"
-          onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-          disabled={!table.getCanNextPage()}
-        >
-          {">>"}
-        </button>
-        <span className="flex items-center gap-1">
-          <div>Page</div>
-          <strong>
-            {table.getState().pagination.pageIndex + 1} of{" "}
-            {table.getPageCount()}
-          </strong>
-        </span>
-        <span className="flex items-center gap-1">
-          | Go to page:
-          <input
-            type="number"
-            defaultValue={table.getState().pagination.pageIndex + 1}
-            onChange={(e) => {
-              const page = e.target.value ? Number(e.target.value) - 1 : 0;
-              table.setPageIndex(page);
-            }}
-            className="border p-1 rounded w-16"
-          />
-        </span>
-        <select
-          value={table.getState().pagination.pageSize}
-          onChange={(e) => {
-            table.setPageSize(Number(e.target.value));
-          }}
-        >
-          {[10, 20, 30, 40, 50].map((pageSize) => (
-            <option key={pageSize} value={pageSize}>
-              Show {pageSize}
-            </option>
-          ))}
-        </select>
-      </div>
+      <PaginationControls table={table} />
     </div>
   );
 };
