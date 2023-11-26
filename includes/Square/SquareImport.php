@@ -35,8 +35,6 @@ class SquareImport extends SquareHelper
                     $results[] = ['status' => 'failure', 'product_id' => null, 'message' => 'Failed to import product'];
                     $this->update_import_progress(null, 'failure', 'Failed to import product');
                 }
-
-              
             } catch (\Exception $e) {
                 error_log('Error importing product: ' . $e->getMessage());
                 $results[] = ['status' => 'failure', 'product_id' => null, 'message' => 'Exception occurred: ' . $e->getMessage()];
@@ -46,7 +44,8 @@ class SquareImport extends SquareHelper
         return $results;
     }
 
-    private function update_import_progress($product_id, $status, $message) {
+    private function update_import_progress($product_id, $status, $message)
+    {
         global $wpdb;
         $wpdb->insert($wpdb->prefix . 'sws_import_progress', [
             'product_id' => $product_id,
@@ -65,13 +64,15 @@ class SquareImport extends SquareHelper
      */
     private function map_square_product_to_woocommerce($square_product)
     {
+        $settings = get_option('sws_settings', []);
+        $wooSuffix = isset($settings['woo_suffix']) ? "-" . $settings['woo_suffix'] : '-sws';
         $wc_product_data = [];
 
         // Map basic product details from Square to WooCommerce
         $wc_product_data['name'] = $square_product['item_data']['name'];
-        $wc_product_data['description'] = $square_product['item_data']['description_plaintext'];
+        $wc_product_data['description'] = $square_product['item_data']['description_plaintext'] ?? '';
         $wc_product_data['type'] = count($square_product['item_data']['variations']) > 1 ? 'variable' : 'simple';
-        $wc_product_data['sku'] = $square_product['item_data']['variations'][0]['item_variation_data']['sku'] . '-sws';
+        $wc_product_data['sku'] = $square_product['item_data']['variations'][0]['item_variation_data']['sku'] .  $wooSuffix;
 
         // Map pricing, SKU, and variations for variable products
         $wc_product_data['variations'] = [];
@@ -97,8 +98,90 @@ class SquareImport extends SquareHelper
 
         $wc_product_data['price'] = $square_product['item_data']['variations'][0]['item_variation_data']['price_money']['amount'] / 100;
 
+        // Handle Multiple Image Imports
+        if (!empty($square_product['item_data']['image_urls']) && !empty($square_product['item_data']['image_ids'])) {
+            $image_urls = $square_product['item_data']['image_urls'];
+            $square_image_ids = $square_product['item_data']['image_ids'];
+
+            $image_ids = array_map(function ($url, $square_image_id) {
+                // Check if the image already exists by Square image ID
+                $existing_image_id = $this->find_existing_image_id($square_image_id);
+                if ($existing_image_id) {
+                    return $existing_image_id;
+                } else {
+                    // Import the image and store the Square image ID
+                    return $this->import_image_from_url($url, $square_image_id);
+                }
+            }, $image_urls, $square_image_ids);
+
+            // Filter out any false values which indicate failed imports
+            $image_ids = array_filter($image_ids);
+
+            if (!empty($image_ids)) {
+                $wc_product_data['image_ids'] = $image_ids;
+            }
+        }
+
         return $wc_product_data;
     }
+
+
+    /**
+     * Imports an image from a URL into the WordPress media library.
+     *
+     * @param string $image_url The URL of the image to import.
+     * @return int|false The attachment ID on success, false on failure.
+     */
+    private function import_image_from_url($image_url, $square_image_id)
+    {
+        require_once(ABSPATH . 'wp-admin/includes/media.php');
+        require_once(ABSPATH . 'wp-admin/includes/file.php');
+        require_once(ABSPATH . 'wp-admin/includes/image.php');
+
+        // Check if the image already exists in the media library
+        $existing_image_id = $this->find_existing_image_id($image_url);
+        if ($existing_image_id) {
+            return $existing_image_id;
+        }
+
+        // Temporarily set the post as the first post (change this as needed)
+        $temp_post_id = null;
+
+        // Download image and create a new attachment
+        $image_id = media_sideload_image($image_url, $temp_post_id, null, 'id');
+        if (!is_wp_error($image_id)) {
+            // Assume $square_image_id is the image ID from Square
+            add_post_meta($image_id, 'square_image_id', $square_image_id, true);
+        }
+
+
+        if (is_wp_error($image_id)) {
+            error_log('Failed to import image: ' . $image_url);
+            return false;
+        }
+
+        return $image_id;
+    }
+
+    /**
+     * Finds the ID of an existing image in the media library by its filename.
+     *
+     * @param string $image_url The URL of the image to find.
+     * @return int|null The ID of the existing image, or null if not found.
+     */
+    private function find_existing_image_id($square_image_id)
+    {
+        global $wpdb;
+
+        $query = $wpdb->prepare(
+            "SELECT post_id FROM $wpdb->postmeta WHERE meta_key = 'square_image_id' AND meta_value = %s",
+            $square_image_id
+        );
+        $result = $wpdb->get_var($query);
+
+        return $result ? intval($result) : null;
+    }
+
 
 
 
@@ -118,6 +201,15 @@ class SquareImport extends SquareHelper
             $product->set_name($wc_product_data['name']);
             $product->set_sku($wc_product_data['sku']);
             $product->set_description($wc_product_data['description']);
+
+            // Set the first image as the featured image and the rest as the gallery
+            if (!empty($wc_product_data['image_ids'])) {
+                update_post_meta($product_id, '_thumbnail_id', array_shift($wc_product_data['image_ids']));
+
+                if (!empty($wc_product_data['image_ids'])) {
+                    update_post_meta($product_id, '_product_image_gallery', implode(',', $wc_product_data['image_ids']));
+                }
+            }
 
 
             if ($wc_product_data['type'] === 'variable') {

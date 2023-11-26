@@ -212,6 +212,7 @@ class SquareController extends RESTController
         }
 
         $product =  $request->get_param('product');
+        error_log(json_encode($product));
         $squareImport = new SquareImport();
 
         if ($token) {

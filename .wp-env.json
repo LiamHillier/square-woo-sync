@@ -1,13 +1,13 @@
 {
-	"plugins": [
-		".",
-		"https://downloads.wordpress.org/plugin/woocommerce.8.3.0.zip"
-	],
-	"port": 1000,
-	"testsPort": 1001,
-	"config": {
-		"WP_DEBUG": true,
-		"WP_DEBUG_DISPLAY": true,
-		"SCRIPT_DEBUG": true
-	}
+  "plugins": [
+    ".",
+    "https://downloads.wordpress.org/plugin/woocommerce.8.3.1.zip"
+  ],
+  "port": 1000,
+  "testsPort": 1001,
+  "config": {
+    "WP_DEBUG": true,
+    "WP_DEBUG_DISPLAY": true,
+    "SCRIPT_DEBUG": true
+  }
 }

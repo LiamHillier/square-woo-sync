@@ -19,7 +19,6 @@ class SquareInventory extends SquareHelper
             $item_options = $this->fetchSquareItemOptions();
             $item_option_values = $this->fetchSquareItemOptionValues();
 
-
             // Prepare the final array of products with options
             $enhanced_products = [];
 
@@ -29,7 +28,6 @@ class SquareInventory extends SquareHelper
                 if (isset($product_data['item_data']['variations']) && !empty($product_data['item_data']['variations'])) {
                     foreach ($product_data['item_data']['variations'] as $index => &$variation) {
                         $variationOptions = [];
-
                         if (isset($variation['item_variation_data']['item_option_values'])) {
                             foreach ($variation['item_variation_data']['item_option_values'] as $optionValue) {
                                 $optionId = $optionValue['item_option_id'];
@@ -148,7 +146,6 @@ class SquareInventory extends SquareHelper
                 return ['error' => 'Error fetching Square item option values: ' . $response['error']];
             }
         } while ($cursor);
-
         return $optionValues;
     }
 
