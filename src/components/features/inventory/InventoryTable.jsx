@@ -57,7 +57,7 @@ const InventoryTable = ({ getInventory }) => {
     if (isImporting) {
       return;
     }
-    console.log(productArr.length);
+
     setImportCount(productArr.length);
     setProgress([]);
     setIsImporting(true);
@@ -82,7 +82,32 @@ const InventoryTable = ({ getInventory }) => {
       });
 
       const results = await Promise.all(importPromises);
-      console.log(results);
+
+      const updatedTableData = inventory.map((inv) => {
+        if (results.some((res) => res.square_id === inv.id)) {
+          const matchedItem = results.find((res) => res.square_id === inv.id);
+          return {
+            ...inv,
+            woocommerce_product_id: matchedItem.woocommerce_product_id || null,
+            imported: matchedItem.status === "success" ? true : false,
+            status: matchedItem.status,
+            item_data: {
+              ...inv.item_data,
+              variations: [
+                ...inv.item_data.variations.map((variation) => {
+                  return {
+                    ...variation,
+                    imported: matchedItem.status === "success" ? true : false,
+                    status: matchedItem.status,
+                  };
+                }),
+              ],
+            },
+          };
+        }
+        return item;
+      });
+      dispatch(setInventory(updatedTableData));
     } catch (error) {
       console.error("Import Product Error:", error);
     } finally {
@@ -730,7 +755,7 @@ const InventoryTable = ({ getInventory }) => {
             <DebouncedInput
               value={globalFilter ?? ""}
               onChange={(value) => setGlobalFilter(value)}
-              className="block w-full rounded-md border-0 py-1.5 pr-14 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+              className="block w-full rounded-md border-0 py-1.5 pr-14 pl-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
               placeholder="Search inventory..."
             />
             <div className="absolute inset-y-0 right-0 flex py-1.5 pr-1.5">
