@@ -1,4 +1,4 @@
-import { useMemo, useState } from "@wordpress/element";
+import { useMemo, useState, useRef, useEffect } from "@wordpress/element";
 import { toast } from "react-toastify";
 import {
   getSortedRowModel,
@@ -21,107 +21,88 @@ import TableRow from "./table/TableRow";
 import PaginationControls from "./table/PaginationControls";
 import { reformatDataForTable } from "../../../utils/formatTableData";
 import { filterRows } from "../../../utils/filterRows";
+import DialogWrapper from "../../Dialog";
 
 const InventoryTable = ({ getInventory }) => {
   const [loadingProductId, setLoadingProductId] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [importCount, setImportCount] = useState(0);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const dispatch = useDispatch();
   const inventory = useSelector((state) => state.inventory.items);
+  const [tableData, setTableData] = useState(inventory);
   const [progress, setProgress] = useState([]);
+  const [expanded, setExpanded] = useState({});
+  const [sorting, setSorting] = useState([]);
+  const [globalFilter, setGlobalFilter] = useState("");
+
+  // In your component render function:
+  const reformattedData = useMemo(
+    () => reformatDataForTable(inventory),
+    [inventory]
+  );
+
+  const [columnVisibility] = useState({
+    id: false,
+  });
+
   const [sseConnection, setSseConnection] = useState(null);
 
   const importProduct = async (productArr) => {
     if (isImporting) {
       return;
     }
+    console.log(productArr.length);
+    setImportCount(productArr.length);
     setProgress([]);
     setIsImporting(true);
-    const toastId = toast.loading("Importing products");
-    setLoadingProductId(productArr[0]?.id); // Assuming you want to show the loading state for the first product
-    let evtSource; // Declare evtSource at a higher scope
-    try {
-      evtSource = initializeEventSource();
-      const res = await processProductImports(productArr);
+    setIsDialogOpen(true);
 
-      const updatedInventory = updateInventoryItems(res);
-      dispatch(setInventory(updatedInventory));
-      toast.update(toastId, createToastConfig("success", "Product imported"));
+    try {
+      const importPromises = productArr.map(async (product) => {
+        const toastId = toast.loading(`Importing product ${product.id}`);
+        const res = await processProductImport(product);
+
+        if (res.error) {
+          toast.update(toastId, createToastConfig("error", res.error));
+        } else {
+          // Update the table data with the latest data
+          setProgress((preProgress) => [...preProgress, res[0]]);
+          toast.update(
+            toastId,
+            createToastConfig("success", `Product ${product.id} imported`)
+          );
+          return res[0];
+        }
+      });
+
+      const results = await Promise.all(importPromises);
+      console.log(results);
     } catch (error) {
       console.error("Import Product Error:", error);
-      toast.update(toastId, createToastConfig("error", error.message));
     } finally {
       setLoadingProductId(null);
-      setIsImporting(false);
-      evtSource?.close(); // Close EventSource if it's initialized
       resetTablePageIndex();
+      setIsImporting(false);
     }
   };
 
-  function initializeEventSource() {
-    const source = new EventSource("/wp-json/sws/v1/square-inventory/progress");
+  async function processProductImport(product) {
+    const inventoryMatch = inventory.find((inv) => inv.id === product.id);
 
-    source.onmessage = (event) => handleEventSourceMessage(event);
-    source.onerror = (err) => {
-      console.error("EventSource failed:", err);
-      source.close();
-    };
+    if (!inventoryMatch) {
+      return { error: `Product ${product.id} not found in inventory` };
+    }
 
-    // Additional handling for server-sent custom events
-    source.addEventListener("server-timeout", (event) => {
-      console.warn("Server timeout:", event.data);
-      source.close();
-    });
-
-    setSseConnection(source);
-    return source;
-  }
-
-  function handleEventSourceMessage(event) {
-    const data = JSON.parse(event.data);
-    setProgress([...progress, data]);
-  }
-
-  function updateInventoryItems(data) {
-    return inventory.map((item) => {
-      const matches = data.some((res) => res.square_id === item.id);
-      if (matches) {
-        const matchingData = data.find((res) => res.square_id === item.id);
-        return updateInventoryItem(item, matchingData.product_id);
-      }
-      return item;
-    });
-  }
-
-  function updateInventoryItem(item, wooID) {
-    return {
-      ...item,
-      status: "imported",
-      imported: true,
-      woocommerce_product_id: wooID,
-      ...(item.item_data.variations && {
-        item_data: {
-          ...item.item_data,
-          variations: item.item_data.variations.map((variation) => ({
-            ...variation,
-            imported: true,
-          })),
-        },
-      }),
-    };
-  }
-
-  async function processProductImports(productArr) {
-    const inventoryMatches = productArr
-      .map((product) => {
-        return inventory.find((inv) => inv.id === product.id);
-      })
-      .filter(Boolean);
-
-    return await apiFetch({
-      path: "/sws/v1/square-inventory/import",
-      method: "POST",
-      data: { product: inventoryMatches },
-    });
+    try {
+      return await apiFetch({
+        path: "/sws/v1/square-inventory/import",
+        method: "POST",
+        data: { product: [inventoryMatch] },
+      });
+    } catch (error) {
+      return { error: error.message };
+    }
   }
 
   function createToastConfig(type, message) {
@@ -347,19 +328,6 @@ const InventoryTable = ({ getInventory }) => {
     },
   ];
 
-  const [expanded, setExpanded] = useState({});
-  const [sorting, setSorting] = useState([]);
-  const [globalFilter, setGlobalFilter] = useState("");
-
-  const reformattedData = useMemo(
-    () => reformatDataForTable(inventory),
-    [inventory]
-  );
-
-  const [columnVisibility] = useState({
-    id: false,
-  });
-
   const table = useReactTable({
     data: reformattedData,
     columns,
@@ -386,8 +354,82 @@ const InventoryTable = ({ getInventory }) => {
     getRowId: (row) => row.id,
   });
 
+  // Inside your component...
+  const loggerContainerRef = useRef(null);
+
+  // Use useEffect to scroll to the bottom when new content is added
+  useEffect(() => {
+    if (loggerContainerRef.current) {
+      loggerContainerRef.current.scrollTop =
+        loggerContainerRef.current.scrollHeight;
+    }
+  }, [progress]);
+
+  const handleDialogClose = () => {
+    console.log("test");
+    setIsDialogOpen(false);
+  };
+
   return (
     <div>
+      <DialogWrapper
+        title="Importing products"
+        description=""
+        open={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        className="w-5/12 max-w-lg mx-auto"
+      >
+        <div className="">
+          <div className="">
+            {/* Progress bar */}
+            <div className="h-4 bg-gray-200 w-full rounded-lg mt-2">
+              <div
+                className="h-full bg-blue-500 rounded-lg"
+                style={{
+                  width: `${(progress.length / importCount) * 100}%`,
+                }}
+              ></div>
+            </div>
+            {/* Progress text */}
+            <div className="text-sm text-gray-500 mt-1">
+              Imported {progress.length} of {importCount} products
+            </div>
+          </div>
+          {/* Logger container with scroll */}
+          <div
+            ref={loggerContainerRef}
+            className="bg-slate-950 p-4 rounded-xl max-h-52 overflow-y-auto overflow-x-hidden w-full flex flex-col gap-2 mt-2"
+          >
+            {progress.map((prog, index) => {
+              return (
+                <p
+                  className={`break-words ${
+                    prog.status === "success"
+                      ? "text-green-500"
+                      : "text-red-500"
+                  }`}
+                  key={prog.square_id}
+                >
+                  {JSON.stringify(prog)}
+                </p>
+              );
+            })}
+          </div>
+          {/* Buttons */}
+          {!isImporting && (
+            <div className="flex items-center justify-end gap-2 mt-6">
+              <button
+                type="button"
+                className="rounded bg-indigo-600 px-2 py-1 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                onClick={handleDialogClose}
+              >
+                Close
+              </button>
+            </div>
+          )}
+        </div>
+      </DialogWrapper>
+
       <div className="px-4 py-5 sm:px-6">
         <div className="grid grid-cols-3 gap-2 mb-4 items-center">
           <div className="flex flex-wrap items-center justify-start sm:flex-nowrap">
