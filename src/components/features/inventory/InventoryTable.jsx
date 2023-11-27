@@ -10,7 +10,13 @@ import {
 } from "@tanstack/react-table";
 import {
   ArrowDownOnSquareStackIcon,
+  ArrowLeftCircleIcon,
   ArrowPathIcon,
+  ArrowRightCircleIcon,
+  ArrowSmallLeftIcon,
+  ArrowsRightLeftIcon,
+  XCircleIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import DebouncedInput from "../../DebouncedInput";
 import apiFetch from "@wordpress/api-fetch";
@@ -30,7 +36,6 @@ const InventoryTable = ({ getInventory }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const dispatch = useDispatch();
   const inventory = useSelector((state) => state.inventory.items);
-  const [tableData, setTableData] = useState(inventory);
   const [progress, setProgress] = useState([]);
   const [expanded, setExpanded] = useState({});
   const [sorting, setSorting] = useState([]);
@@ -216,7 +221,7 @@ const InventoryTable = ({ getInventory }) => {
           );
         } else {
           return (
-            <div className="flex items-center gap-2 w-10 h-10 rounded bg-gradient-to-tr from-gray-100 to-gray-50 flex items-center justify-center">
+            <div className=" gap-2 w-10 h-10 rounded bg-gradient-to-tr from-gray-100 to-gray-50 flex items-center justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 width="24"
@@ -370,61 +375,332 @@ const InventoryTable = ({ getInventory }) => {
     setIsDialogOpen(false);
   };
 
+  const [steps, setSteps] = useState([
+    { name: "Step 1", href: "#", status: "current" },
+    { name: "Step 2", href: "#", status: "upcoming" },
+    { name: "Step 3", href: "#", status: "upcoming" },
+  ]);
+  const [currentStep, setCurrentStep] = useState(0);
+
+  const [rangeValue, setRangeValue] = useState(15);
+
+  const handleRangeChange = (event) => {
+    setRangeValue(event.target.value);
+  };
+
+  const handleStepChange = (direction) => {
+    setCurrentStep((prev) => {
+      // Check if moving forward
+      if (direction === "forward" && prev < steps.length - 1) {
+        return prev + 1;
+      }
+      // Check if moving backward
+      else if (direction === "backward" && prev > 0) {
+        return prev - 1;
+      }
+      return prev; // Return current step if no change is possible
+    });
+  };
+
   return (
     <div>
       <DialogWrapper
-        title="Importing products"
-        description=""
         open={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
-        className="w-5/12 max-w-lg mx-auto"
+        className="w-6/12 max-w-lg mx-auto"
       >
         <div className="">
-          <div className="">
-            {/* Progress bar */}
-            <div className="h-4 bg-gray-200 w-full rounded-lg mt-2">
-              <div
-                className="h-full bg-blue-500 rounded-lg"
-                style={{
-                  width: `${(progress.length / importCount) * 100}%`,
-                }}
-              ></div>
-            </div>
-            {/* Progress text */}
-            <div className="text-sm text-gray-500 mt-1">
-              Imported {progress.length} of {importCount} products
-            </div>
-          </div>
-          {/* Logger container with scroll */}
-          <div
-            ref={loggerContainerRef}
-            className="bg-slate-950 p-4 rounded-xl max-h-52 overflow-y-auto overflow-x-hidden w-full flex flex-col gap-2 mt-2"
-          >
-            {progress.map((prog, index) => {
-              return (
-                <p
-                  className={`break-words ${
-                    prog.status === "success"
-                      ? "text-green-500"
-                      : "text-red-500"
-                  }`}
-                  key={prog.square_id}
+          <header className="flex justify-between items-center gap-2 mb-4">
+            <h3 className="text-lg font-medium leading-6 text-gray-900">
+              Import from Square
+            </h3>
+            <nav
+              className="flex items-center justify-center"
+              aria-label="Progress"
+            >
+              <p className="text-sm font-medium">
+                Step {currentStep + 1} of {steps.length}
+              </p>
+              <ol role="list" className="ml-8 flex items-center space-x-5">
+                {steps.map((step, idx) => (
+                  <li key={step.name}>
+                    {step.status === "complete" ? (
+                      <span className="block h-2.5 w-2.5 rounded-full bg-indigo-600 hover:bg-indigo-900">
+                        <span className="sr-only">{step.name}</span>
+                      </span>
+                    ) : currentStep === idx ? (
+                      <span
+                        className="relative flex items-center justify-center"
+                        aria-current="step"
+                      >
+                        <span
+                          className="absolute flex h-5 w-5 p-px"
+                          aria-hidden="true"
+                        >
+                          <span className="h-full w-full rounded-full bg-indigo-200" />
+                        </span>
+                        <span
+                          className="relative block h-2.5 w-2.5 rounded-full bg-indigo-600"
+                          aria-hidden="true"
+                        />
+                        <span className="sr-only">{step.name}</span>
+                      </span>
+                    ) : (
+                      <span className="block h-2.5 w-2.5 rounded-full bg-gray-200 hover:bg-gray-400">
+                        <span className="sr-only">{step.name}</span>
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          </header>
+          {currentStep === 0 && (
+            <div>
+              <h4 className="text-base mb-4">
+                Select the data you wish to import / sync:
+              </h4>
+              <fieldset className="mb-3">
+                <legend className="sr-only">data to sync</legend>
+                <div className="flex gap-x-6 gap-y-4 items-start flex-wrap">
+                  <label
+                    for="title"
+                    className="flex items-center gap-1 leading-none"
+                  >
+                    <input
+                      type="checkbox"
+                      required
+                      checked
+                      disabled
+                      id="title"
+                      className="h-full !m-0"
+                    />
+                    Title
+                  </label>
+                  <label
+                    for="SKU"
+                    className="flex items-center gap-1 leading-none"
+                  >
+                    <input
+                      type="checkbox"
+                      required
+                      checked
+                      disabled
+                      id="SKU"
+                      className="h-full !m-0"
+                    />
+                    SKU
+                  </label>
+                  <label
+                    for="price"
+                    className="flex items-center gap-1 leading-none"
+                  >
+                    <input type="checkbox" id="price" className="h-full !m-0" />
+                    Price
+                  </label>
+                  <label
+                    for="description"
+                    className="flex items-center gap-1 leading-none"
+                  >
+                    <input
+                      type="checkbox"
+                      id="description"
+                      className="h-full !m-0"
+                    />
+                    Description
+                  </label>
+                  <label
+                    for="image"
+                    className="flex items-center gap-1 leading-none"
+                  >
+                    <input type="checkbox" id="image" className="h-full !m-0" />
+                    Image
+                  </label>
+                  <label
+                    for="categories"
+                    className="flex items-center gap-1 leading-none"
+                  >
+                    <input
+                      type="checkbox"
+                      id="categories"
+                      className="h-full !m-0"
+                    />
+                    Categories
+                  </label>
+                  <label
+                    for="stock"
+                    className="flex items-center gap-1 leading-none"
+                  >
+                    <input type="checkbox" id="stock" className="h-full !m-0" />
+                    Stock
+                  </label>
+                </div>
+              </fieldset>
+              <p>
+                Existing products will have their data updated, while new
+                entries will be created for products not already in the system.
+              </p>
+              <h4 className="text-base mt-4 mb-2">
+                How many products to import in each batch?
+              </h4>
+              <p>
+                Increasing the number in each batch places a greater load on the
+                server (especially when import images). If you encounter errors,
+                consider reducing this value for better stability or disabling
+                image import.
+              </p>
+
+              <div class="relative mb-6 mt-3">
+                <label htmlFor="labels-range-input" className="sr-only">
+                  Labels range
+                </label>
+                <input
+                  id="labels-range-input"
+                  type="range"
+                  value={rangeValue}
+                  onChange={handleRangeChange}
+                  step={5}
+                  min="5"
+                  max="50"
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <span className="text-sm text-gray-500 absolute start-0 -bottom-6">
+                  Min 5
+                </span>
+                {/* Display the current value */}
+                <span className="text-sm text-gray-600 font-semibold absolute start-1/2 -translate-x-1/2 -bottom-6">
+                  {rangeValue}
+                </span>
+                <span className="text-sm text-gray-500 absolute end-0 -bottom-6">
+                  Max 50
+                </span>
+              </div>
+              <div className="flex items-center mt-10 justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentStep(0);
+                    setIsDialogOpen(false);
+                  }}
+                  className="relative inline-flex items-center rounded-md bg-gray-400 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
                 >
-                  {JSON.stringify(prog)}
-                </p>
-              );
-            })}
-          </div>
-          {/* Buttons */}
-          {!isImporting && (
-            <div className="flex items-center justify-end gap-2 mt-6">
-              <button
-                type="button"
-                className="rounded bg-indigo-600 px-2 py-1 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                onClick={handleDialogClose}
-              >
-                Close
-              </button>
+                  <span>Cancel</span>
+                  <XCircleIcon
+                    className="ml-1.5 h-4 w-4 text-white"
+                    aria-hidden="true"
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStepChange("forward")}
+                  className="relative inline-flex items-center rounded-md bg-indigo-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
+                >
+                  <span>Continue</span>
+                  <ArrowRightCircleIcon
+                    className="ml-1.5 h-4 w-4 text-white"
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
+            </div>
+          )}
+          {currentStep === 1 && (
+            <div>
+              <h4 className="text-base mb-4">Review</h4>
+              <p>
+                You are about to import #NUM products in batches of #BATCHES.
+                Existing products will have their data updated, while new
+                entries will be created for products not already in the system.
+              </p>
+              <p className="mt-2">
+                You have chosen to import/sync the following:
+              </p>
+              <div className="flex items-center mt-10 justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleStepChange("backward")}
+                  className="relative inline-flex items-center rounded-md bg-gray-400 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
+                >
+                  <ArrowLeftCircleIcon
+                    className="mr-1.5 h-4 w-4 text-white"
+                    aria-hidden="true"
+                  />
+                  <span>Go back</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleStepChange("forward");
+                    importProduct(reformattedData);
+                  }}
+                  className="relative inline-flex items-center rounded-md bg-red-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
+                >
+                  <span>IMPORT</span>
+                  <ArrowRightCircleIcon
+                    className="ml-1.5 h-4 w-4 text-white"
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
+            </div>
+          )}
+          {currentStep === 2 && (
+            <div>
+              <div>
+                <div className="">
+                  {/* Progress bar */}
+                  <div className="h-4 bg-gray-200 w-full rounded-lg mt-2">
+                    <div
+                      className="h-full bg-blue-500 rounded-lg"
+                      style={{
+                        width: `${(progress.length / importCount) * 100}%`,
+                      }}
+                    ></div>
+                  </div>
+                  {/* Progress text */}
+                  <div className="text-sm text-gray-500 mt-1">
+                    Imported {progress.length} of {importCount} products
+                  </div>
+                </div>
+                {/* Logger container with scroll */}
+                <div
+                  ref={loggerContainerRef}
+                  className="bg-slate-950 p-4 rounded-xl max-h-52 overflow-y-auto overflow-x-hidden w-full flex flex-col gap-2 mt-2"
+                >
+                  {progress.map((prog, index) => {
+                    return (
+                      <p
+                        className={`break-words ${
+                          prog.status === "success"
+                            ? "text-green-500"
+                            : "text-red-500"
+                        }`}
+                        key={prog.square_id}
+                      >
+                        {JSON.stringify(prog)}
+                      </p>
+                    );
+                  })}
+                </div>
+              </div>
+              {!isImporting && (
+                <div className="flex items-center justify-end gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDialogOpen(false);
+                      setCurrentStep(0);
+                    }}
+                    className="relative inline-flex items-center rounded-md bg-gray-400 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
+                  >
+                    <XCircleIcon
+                      className="mr-1.5 h-4 w-4 text-white"
+                      aria-hidden="true"
+                    />
+                    <span>Close</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -478,7 +754,7 @@ const InventoryTable = ({ getInventory }) => {
           <div className="flex justify-end items-center">
             <button
               type="button"
-              onClick={() => importProduct(reformattedData)}
+              onClick={() => setIsDialogOpen(true)}
               className="relative inline-flex items-center rounded-md bg-indigo-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
             >
               <ArrowDownOnSquareStackIcon

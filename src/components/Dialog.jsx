@@ -2,14 +2,7 @@ import { useState, Fragment, useRef } from "@wordpress/element";
 import { Dialog } from "@headlessui/react";
 import { classNames } from "../utils/classHelper";
 
-const DialogWrapper = ({
-  children,
-  title,
-  description,
-  open,
-  onClose,
-  className,
-}) => {
+const DialogWrapper = ({ children, open, onClose, className }) => {
   const initialFocusRef = useRef(null);
 
   return (
@@ -32,15 +25,6 @@ const DialogWrapper = ({
                 className
               )}
             >
-              <Dialog.Title
-                as="h3"
-                className="text-lg font-medium leading-6 text-gray-900"
-              >
-                {title}
-              </Dialog.Title>
-              <Dialog.Description className="mt-2 text-gray-500 text-sm" as="p">
-                {description}
-              </Dialog.Description>
               {children}
             </div>
           </Dialog.Panel>
