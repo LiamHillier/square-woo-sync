@@ -107,13 +107,13 @@ class SquareImport extends SquareHelper
 
             $image_ids = array_map(function ($url, $square_image_id) {
                 // Check if the image already exists by Square image ID
-                $existing_image_id = $this->find_existing_image_id($square_image_id);
-                if ($existing_image_id) {
-                    return $existing_image_id;
-                } else {
-                    // Import the image and store the Square image ID
-                    return $this->import_image_from_url($url, $square_image_id);
-                }
+                // $existing_image_id = $this->find_existing_image_id($square_image_id);
+                // if ($existing_image_id) {
+                //     return $existing_image_id;
+                // } else {
+                // Import the image and store the Square image ID
+                return $this->import_image_from_url($url, $square_image_id);
+                // }
             }, $image_urls, $square_image_ids);
 
             // Filter out any false values which indicate failed imports
@@ -142,17 +142,17 @@ class SquareImport extends SquareHelper
 
 
 
-        // Check if the image already exists in the media library
-        $existing_image_id = $this->find_existing_image_id($image_url);
-        if ($existing_image_id) {
-            return $existing_image_id;
-        }
+        // // Check if the image already exists in the media library
+        // $existing_image_id = $this->find_existing_image_id($image_url);
+        // if ($existing_image_id) {
+        //     return $existing_image_id;
+        // }
 
         // Temporarily set the post as the first post (change this as needed)
-        $temp_post_id = null;
+        $temp_post_id = 0;
 
         // Download image and create a new attachment
-        $image_id = media_sideload_image($image_url, $temp_post_id, null, 'id');
+        $image_id = media_sideload_image($image_url, $temp_post_id, 0, 'id');
         if (!is_wp_error($image_id)) {
             // Assume $square_image_id is the image ID from Square
             add_post_meta($image_id, 'square_image_id', $square_image_id, true);
@@ -206,6 +206,10 @@ class SquareImport extends SquareHelper
             $product->set_sku($wc_product_data['sku']);
             $product->set_description($wc_product_data['description']);
 
+            // First, clear the existing featured image and gallery images
+            $product->set_image_id(''); // Remove existing featured image
+            $product->set_gallery_image_ids(array()); // Remove existing gallery images
+
             // Set the first image as the featured image and the rest as the gallery
             if (!empty($wc_product_data['image_ids'])) {
                 $featured_image_id = array_shift($wc_product_data['image_ids']);
@@ -215,6 +219,7 @@ class SquareImport extends SquareHelper
                     $product->set_gallery_image_ids($wc_product_data['image_ids']); // Set gallery images
                 }
             }
+
 
 
 

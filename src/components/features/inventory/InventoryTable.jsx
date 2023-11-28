@@ -40,6 +40,16 @@ const InventoryTable = ({ getInventory }) => {
   const [expanded, setExpanded] = useState({});
   const [sorting, setSorting] = useState([]);
   const [globalFilter, setGlobalFilter] = useState("");
+  const [productsToImport, setProductsToImport] = useState([]);
+  const [dataToImport, setDataToImport] = useState({
+    title: true,
+    sku: true,
+    description: true,
+    image: true,
+    price: true,
+    categories: true,
+    stock: true,
+  });
 
   // In your component render function:
   const reformattedData = useMemo(
@@ -53,11 +63,11 @@ const InventoryTable = ({ getInventory }) => {
 
   const [sseConnection, setSseConnection] = useState(null);
 
-  const importProduct = async (productArr) => {
+  const importProduct = async () => {
     if (isImporting) {
       return;
     }
-
+    const productArr = productsToImport;
     setImportCount(productArr.length);
     setProgress([]);
     setIsImporting(true);
@@ -65,7 +75,6 @@ const InventoryTable = ({ getInventory }) => {
 
     try {
       const importPromises = productArr.map(async (product) => {
-        const toastId = toast.loading(`Importing product ${product.id}`);
         const res = await processProductImport(product);
 
         if (res.error) {
@@ -73,10 +82,6 @@ const InventoryTable = ({ getInventory }) => {
         } else {
           // Update the table data with the latest data
           setProgress((preProgress) => [...preProgress, res[0]]);
-          toast.update(
-            toastId,
-            createToastConfig("success", `Product ${product.id} imported`)
-          );
           return res[0];
         }
       });
@@ -88,7 +93,7 @@ const InventoryTable = ({ getInventory }) => {
           const matchedItem = results.find((res) => res.square_id === inv.id);
           return {
             ...inv,
-            woocommerce_product_id: matchedItem.woocommerce_product_id || null,
+            woocommerce_product_id: matchedItem.product_id,
             imported: matchedItem.status === "success" ? true : false,
             status: matchedItem.status,
             item_data: {
@@ -346,7 +351,10 @@ const InventoryTable = ({ getInventory }) => {
             )}
             <button
               type="button"
-              onClick={() => importProduct([row.original])}
+              onClick={() => {
+                setProductsToImport([row.original]);
+                setIsDialogOpen(true);
+              }}
               disabled={isImporting}
               className="rounded bg-indigo-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
             >
@@ -432,12 +440,12 @@ const InventoryTable = ({ getInventory }) => {
       <DialogWrapper
         open={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
-        className="w-6/12 max-w-lg mx-auto"
+        className="w-full max-w-xl mx-auto"
       >
         <div className="">
           <header className="flex justify-between items-center gap-2 mb-4">
             <h3 className="text-lg font-medium leading-6 text-gray-900">
-              Import from Square
+              Import {productsToImport.length} items from Square
             </h3>
             <nav
               className="flex items-center justify-center"
@@ -489,13 +497,13 @@ const InventoryTable = ({ getInventory }) => {
                 <legend className="sr-only">data to sync</legend>
                 <div className="flex gap-x-6 gap-y-4 items-start flex-wrap">
                   <label
-                    for="title"
+                    htmlFor="title"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       required
-                      checked
+                      checked={dataToImport.title}
                       disabled
                       id="title"
                       className="h-full !m-0"
@@ -503,13 +511,13 @@ const InventoryTable = ({ getInventory }) => {
                     Title
                   </label>
                   <label
-                    for="SKU"
+                    htmlFor="SKU"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       required
-                      checked
+                      checked={dataToImport.sku}
                       disabled
                       id="SKU"
                       className="h-full !m-0"
@@ -517,46 +525,93 @@ const InventoryTable = ({ getInventory }) => {
                     SKU
                   </label>
                   <label
-                    for="price"
+                    htmlFor="price"
                     className="flex items-center gap-1 leading-none"
                   >
-                    <input type="checkbox" id="price" className="h-full !m-0" />
+                    <input
+                      type="checkbox"
+                      id="price"
+                      className="h-full !m-0"
+                      checked={dataToImport.price}
+                      onChange={() =>
+                        setDataToImport({
+                          ...dataToImport,
+                          price: !dataToImport.price,
+                        })
+                      }
+                    />
                     Price
                   </label>
                   <label
-                    for="description"
+                    htmlFor="description"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       id="description"
                       className="h-full !m-0"
+                      checked={dataToImport.description}
+                      onChange={() =>
+                        setDataToImport({
+                          ...dataToImport,
+                          description: !dataToImport.description,
+                        })
+                      }
                     />
                     Description
                   </label>
                   <label
-                    for="image"
+                    htmlFor="image"
                     className="flex items-center gap-1 leading-none"
                   >
-                    <input type="checkbox" id="image" className="h-full !m-0" />
+                    <input
+                      type="checkbox"
+                      id="image"
+                      className="h-full !m-0"
+                      checked={dataToImport.image}
+                      onChange={() =>
+                        setDataToImport({
+                          ...dataToImport,
+                          image: !dataToImport.image,
+                        })
+                      }
+                    />
                     Image
                   </label>
                   <label
-                    for="categories"
+                    htmlFor="categories"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       id="categories"
                       className="h-full !m-0"
+                      checked={dataToImport.categories}
+                      onChange={() =>
+                        setDataToImport({
+                          ...dataToImport,
+                          categories: !dataToImport.categories,
+                        })
+                      }
                     />
                     Categories
                   </label>
                   <label
-                    for="stock"
+                    htmlFor="stock"
                     className="flex items-center gap-1 leading-none"
                   >
-                    <input type="checkbox" id="stock" className="h-full !m-0" />
+                    <input
+                      type="checkbox"
+                      id="stock"
+                      className="h-full !m-0"
+                      checked={dataToImport.stock}
+                      onChange={() =>
+                        setDataToImport({
+                          ...dataToImport,
+                          stock: !dataToImport.stock,
+                        })
+                      }
+                    />
                     Stock
                   </label>
                 </div>
@@ -566,7 +621,7 @@ const InventoryTable = ({ getInventory }) => {
                 entries will be created for products not already in the system.
               </p>
               <h4 className="text-base mt-4 mb-2">
-                How many products to import in each batch?
+                Split up import into multiple batches
               </h4>
               <p>
                 Increasing the number in each batch places a greater load on the
@@ -574,8 +629,10 @@ const InventoryTable = ({ getInventory }) => {
                 consider reducing this value for better stability or disabling
                 image import.
               </p>
-
-              <div class="relative mb-6 mt-3">
+              <h4 className="text-sm mt-2 mb-2">
+                How many products per batch:
+              </h4>
+              <div className="relative mb-6 mt-3">
                 <label htmlFor="labels-range-input" className="sr-only">
                   Labels range
                 </label>
@@ -633,13 +690,32 @@ const InventoryTable = ({ getInventory }) => {
             <div>
               <h4 className="text-base mb-4">Review</h4>
               <p>
-                You are about to import #NUM products in batches of #BATCHES.
-                Existing products will have their data updated, while new
-                entries will be created for products not already in the system.
+                You are about to import{" "}
+                <span className="font-semibold">{productsToImport.length}</span>{" "}
+                products in batches of{" "}
+                <span className="font-semibold">{rangeValue}</span>. Existing
+                products will have their data updated, while new entries will be
+                created for products not already in the system. The following
+                data will be imported/synced with woo products:
               </p>
-              <p className="mt-2">
-                You have chosen to import/sync the following:
-              </p>
+              <ul>
+                <ul className="flex gap-2 mt-4 font-semibold">
+                  {Object.keys(dataToImport).map((key) => {
+                    const value = dataToImport[key];
+                    if (value !== undefined && value !== null) {
+                      return (
+                        <li
+                          key={key}
+                          className="p-2 text-xs border border-gray-200 uppercase"
+                        >
+                          {key}
+                        </li>
+                      );
+                    }
+                    return null;
+                  })}
+                </ul>
+              </ul>
               <div className="flex items-center mt-10 justify-end gap-2">
                 <button
                   type="button"
@@ -656,7 +732,7 @@ const InventoryTable = ({ getInventory }) => {
                   type="button"
                   onClick={() => {
                     handleStepChange("forward");
-                    importProduct(reformattedData);
+                    importProduct();
                   }}
                   className="relative inline-flex items-center rounded-md bg-red-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
                 >
@@ -779,7 +855,10 @@ const InventoryTable = ({ getInventory }) => {
           <div className="flex justify-end items-center">
             <button
               type="button"
-              onClick={() => setIsDialogOpen(true)}
+              onClick={() => {
+                setProductsToImport(reformattedData);
+                setIsDialogOpen(true);
+              }}
               className="relative inline-flex items-center rounded-md bg-indigo-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
             >
               <ArrowDownOnSquareStackIcon
