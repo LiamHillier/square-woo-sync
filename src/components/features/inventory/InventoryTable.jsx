@@ -40,16 +40,6 @@ const InventoryTable = ({ getInventory }) => {
   const [expanded, setExpanded] = useState({});
   const [sorting, setSorting] = useState([]);
   const [globalFilter, setGlobalFilter] = useState("");
-  const [productsToImport, setProductsToImport] = useState([]);
-  const [dataToImport, setDataToImport] = useState({
-    title: true,
-    sku: true,
-    description: true,
-    image: true,
-    price: true,
-    categories: true,
-    stock: true,
-  });
 
   // In your component render function:
   const reformattedData = useMemo(
@@ -63,63 +53,96 @@ const InventoryTable = ({ getInventory }) => {
 
   const [sseConnection, setSseConnection] = useState(null);
 
-  const importProduct = async () => {
+  const importProduct = async (productArr) => {
     if (isImporting) {
       return;
     }
-    const productArr = productsToImport;
+
     setImportCount(productArr.length);
     setProgress([]);
     setIsImporting(true);
     setIsDialogOpen(true);
 
-    try {
-      const importPromises = productArr.map(async (product) => {
-        const res = await processProductImport(product);
+    // Function to create batches
+    const createBatches = (array, batchSize) => {
+      const batches = [];
+      for (let i = 0; i < array.length; i += batchSize) {
+        const batch = array.slice(i, i + batchSize);
+        batches.push(batch);
+      }
+      return batches;
+    };
 
-        if (res.error) {
-          toast.update(toastId, createToastConfig("error", res.error));
-        } else {
-          // Update the table data with the latest data
-          setProgress((preProgress) => [...preProgress, res[0]]);
-          return res[0];
-        }
-      });
+    // Define the batch size, adjust as needed
+    const batchSize = 10; // Example batch size
+    const batches = createBatches(productArr, batchSize);
 
-      const results = await Promise.all(importPromises);
+    for (const batch of batches) {
+      try {
+        const importPromises = batch.map(async (product) => {
+          const toastId = toast.loading(`Importing product ${product.id}`);
+          try {
+            const res = await processProductImport(product);
 
-      const updatedTableData = inventory.map((inv) => {
-        if (results.some((res) => res.square_id === inv.id)) {
-          const matchedItem = results.find((res) => res.square_id === inv.id);
-          return {
-            ...inv,
-            woocommerce_product_id: matchedItem.product_id,
-            imported: matchedItem.status === "success" ? true : false,
-            status: matchedItem.status,
-            item_data: {
-              ...inv.item_data,
-              variations: [
-                ...inv.item_data.variations.map((variation) => {
-                  return {
-                    ...variation,
-                    imported: matchedItem.status === "success" ? true : false,
-                    status: matchedItem.status,
-                  };
-                }),
-              ],
-            },
-          };
-        }
-        return item;
-      });
-      dispatch(setInventory(updatedTableData));
-    } catch (error) {
-      console.error("Import Product Error:", error);
-    } finally {
-      setLoadingProductId(null);
-      resetTablePageIndex();
-      setIsImporting(false);
+            if (res.error) {
+              toast.update(toastId, createToastConfig("error", res.error));
+            } else {
+              setProgress((preProgress) => [...preProgress, res[0]]);
+              toast.update(
+                toastId,
+                createToastConfig("success", `Product ${product.id} imported`)
+              );
+              return res[0];
+            }
+          } catch (error) {
+            console.error(`Error importing product ${product.id}:`, error);
+            toast.update(
+              toastId,
+              createToastConfig(
+                "error",
+                `Error importing product ${product.id}`
+              )
+            );
+          }
+        });
+
+        const results = await Promise.all(importPromises);
+
+        const updatedTableData = inventory.map((inv) => {
+          if (results.some((res) => res.square_id === inv.id)) {
+            const matchedItem = results.find((res) => res.square_id === inv.id);
+            return {
+              ...inv,
+              woocommerce_product_id:
+                matchedItem.woocommerce_product_id || null,
+              imported: matchedItem.status === "success" ? true : false,
+              status: matchedItem.status,
+              item_data: {
+                ...inv.item_data,
+                variations: [
+                  ...inv.item_data.variations.map((variation) => {
+                    return {
+                      ...variation,
+                      imported: matchedItem.status === "success" ? true : false,
+                      status: matchedItem.status,
+                    };
+                  }),
+                ],
+              },
+            };
+          }
+          return item;
+        });
+        dispatch(setInventory(updatedTableData));
+      } catch (error) {
+        console.error("Batch Import Error:", error);
+      }
     }
+
+    // Resetting states after all batches are processed
+    setLoadingProductId(null);
+    resetTablePageIndex();
+    setIsImporting(false);
   };
 
   async function processProductImport(product) {
@@ -351,10 +374,7 @@ const InventoryTable = ({ getInventory }) => {
             )}
             <button
               type="button"
-              onClick={() => {
-                setProductsToImport([row.original]);
-                setIsDialogOpen(true);
-              }}
+              onClick={() => importProduct([row.original])}
               disabled={isImporting}
               className="rounded bg-indigo-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
             >
@@ -440,12 +460,12 @@ const InventoryTable = ({ getInventory }) => {
       <DialogWrapper
         open={isDialogOpen}
         onClose={() => setIsDialogOpen(false)}
-        className="w-full max-w-xl mx-auto"
+        className="w-6/12 max-w-lg mx-auto"
       >
         <div className="">
           <header className="flex justify-between items-center gap-2 mb-4">
             <h3 className="text-lg font-medium leading-6 text-gray-900">
-              Import {productsToImport.length} items from Square
+              Import from Square
             </h3>
             <nav
               className="flex items-center justify-center"
@@ -497,13 +517,13 @@ const InventoryTable = ({ getInventory }) => {
                 <legend className="sr-only">data to sync</legend>
                 <div className="flex gap-x-6 gap-y-4 items-start flex-wrap">
                   <label
-                    htmlFor="title"
+                    for="title"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       required
-                      checked={dataToImport.title}
+                      checked
                       disabled
                       id="title"
                       className="h-full !m-0"
@@ -511,13 +531,13 @@ const InventoryTable = ({ getInventory }) => {
                     Title
                   </label>
                   <label
-                    htmlFor="SKU"
+                    for="SKU"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       required
-                      checked={dataToImport.sku}
+                      checked
                       disabled
                       id="SKU"
                       className="h-full !m-0"
@@ -525,93 +545,46 @@ const InventoryTable = ({ getInventory }) => {
                     SKU
                   </label>
                   <label
-                    htmlFor="price"
+                    for="price"
                     className="flex items-center gap-1 leading-none"
                   >
-                    <input
-                      type="checkbox"
-                      id="price"
-                      className="h-full !m-0"
-                      checked={dataToImport.price}
-                      onChange={() =>
-                        setDataToImport({
-                          ...dataToImport,
-                          price: !dataToImport.price,
-                        })
-                      }
-                    />
+                    <input type="checkbox" id="price" className="h-full !m-0" />
                     Price
                   </label>
                   <label
-                    htmlFor="description"
+                    for="description"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       id="description"
                       className="h-full !m-0"
-                      checked={dataToImport.description}
-                      onChange={() =>
-                        setDataToImport({
-                          ...dataToImport,
-                          description: !dataToImport.description,
-                        })
-                      }
                     />
                     Description
                   </label>
                   <label
-                    htmlFor="image"
+                    for="image"
                     className="flex items-center gap-1 leading-none"
                   >
-                    <input
-                      type="checkbox"
-                      id="image"
-                      className="h-full !m-0"
-                      checked={dataToImport.image}
-                      onChange={() =>
-                        setDataToImport({
-                          ...dataToImport,
-                          image: !dataToImport.image,
-                        })
-                      }
-                    />
+                    <input type="checkbox" id="image" className="h-full !m-0" />
                     Image
                   </label>
                   <label
-                    htmlFor="categories"
+                    for="categories"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       id="categories"
                       className="h-full !m-0"
-                      checked={dataToImport.categories}
-                      onChange={() =>
-                        setDataToImport({
-                          ...dataToImport,
-                          categories: !dataToImport.categories,
-                        })
-                      }
                     />
                     Categories
                   </label>
                   <label
-                    htmlFor="stock"
+                    for="stock"
                     className="flex items-center gap-1 leading-none"
                   >
-                    <input
-                      type="checkbox"
-                      id="stock"
-                      className="h-full !m-0"
-                      checked={dataToImport.stock}
-                      onChange={() =>
-                        setDataToImport({
-                          ...dataToImport,
-                          stock: !dataToImport.stock,
-                        })
-                      }
-                    />
+                    <input type="checkbox" id="stock" className="h-full !m-0" />
                     Stock
                   </label>
                 </div>
@@ -621,7 +594,7 @@ const InventoryTable = ({ getInventory }) => {
                 entries will be created for products not already in the system.
               </p>
               <h4 className="text-base mt-4 mb-2">
-                Split up import into multiple batches
+                How many products to import in each batch?
               </h4>
               <p>
                 Increasing the number in each batch places a greater load on the
@@ -629,10 +602,8 @@ const InventoryTable = ({ getInventory }) => {
                 consider reducing this value for better stability or disabling
                 image import.
               </p>
-              <h4 className="text-sm mt-2 mb-2">
-                How many products per batch:
-              </h4>
-              <div className="relative mb-6 mt-3">
+
+              <div class="relative mb-6 mt-3">
                 <label htmlFor="labels-range-input" className="sr-only">
                   Labels range
                 </label>
@@ -690,32 +661,13 @@ const InventoryTable = ({ getInventory }) => {
             <div>
               <h4 className="text-base mb-4">Review</h4>
               <p>
-                You are about to import{" "}
-                <span className="font-semibold">{productsToImport.length}</span>{" "}
-                products in batches of{" "}
-                <span className="font-semibold">{rangeValue}</span>. Existing
-                products will have their data updated, while new entries will be
-                created for products not already in the system. The following
-                data will be imported/synced with woo products:
+                You are about to import #NUM products in batches of #BATCHES.
+                Existing products will have their data updated, while new
+                entries will be created for products not already in the system.
               </p>
-              <ul>
-                <ul className="flex gap-2 mt-4 font-semibold">
-                  {Object.keys(dataToImport).map((key) => {
-                    const value = dataToImport[key];
-                    if (value !== undefined && value !== null) {
-                      return (
-                        <li
-                          key={key}
-                          className="p-2 text-xs border border-gray-200 uppercase"
-                        >
-                          {key}
-                        </li>
-                      );
-                    }
-                    return null;
-                  })}
-                </ul>
-              </ul>
+              <p className="mt-2">
+                You have chosen to import/sync the following:
+              </p>
               <div className="flex items-center mt-10 justify-end gap-2">
                 <button
                   type="button"
@@ -732,7 +684,7 @@ const InventoryTable = ({ getInventory }) => {
                   type="button"
                   onClick={() => {
                     handleStepChange("forward");
-                    importProduct();
+                    importProduct(reformattedData);
                   }}
                   className="relative inline-flex items-center rounded-md bg-red-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
                 >
@@ -855,10 +807,7 @@ const InventoryTable = ({ getInventory }) => {
           <div className="flex justify-end items-center">
             <button
               type="button"
-              onClick={() => {
-                setProductsToImport(reformattedData);
-                setIsDialogOpen(true);
-              }}
+              onClick={() => setIsDialogOpen(true)}
               className="relative inline-flex items-center rounded-md bg-indigo-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
             >
               <ArrowDownOnSquareStackIcon
