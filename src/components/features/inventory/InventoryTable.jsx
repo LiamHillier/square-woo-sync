@@ -28,6 +28,7 @@ import PaginationControls from "./table/PaginationControls";
 import { reformatDataForTable } from "../../../utils/formatTableData";
 import { filterRows } from "../../../utils/filterRows";
 import DialogWrapper from "../../Dialog";
+import { range } from "lodash";
 
 const InventoryTable = ({ getInventory }) => {
   const [loadingProductId, setLoadingProductId] = useState(null);
@@ -40,7 +41,23 @@ const InventoryTable = ({ getInventory }) => {
   const [expanded, setExpanded] = useState({});
   const [sorting, setSorting] = useState([]);
   const [globalFilter, setGlobalFilter] = useState("");
-
+  const [productsToImport, setProductsToImport] = useState([]);
+  const [steps, setSteps] = useState([
+    { name: "Step 1", href: "#", status: "current" },
+    { name: "Step 2", href: "#", status: "upcoming" },
+    { name: "Step 3", href: "#", status: "upcoming" },
+  ]);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [dataToImport, setDataToImport] = useState({
+    title: true,
+    sku: true,
+    description: true,
+    stock: true,
+    image: true,
+    categories: true,
+    price: true,
+  });
+  const [rangeValue, setRangeValue] = useState(15);
   // In your component render function:
   const reformattedData = useMemo(
     () => reformatDataForTable(inventory),
@@ -53,12 +70,12 @@ const InventoryTable = ({ getInventory }) => {
 
   const [sseConnection, setSseConnection] = useState(null);
 
-  const importProduct = async (productArr) => {
+  const importProduct = async () => {
     if (isImporting) {
       return;
     }
 
-    setImportCount(productArr.length);
+    setImportCount(productsToImport.length);
     setProgress([]);
     setIsImporting(true);
     setIsDialogOpen(true);
@@ -74,40 +91,36 @@ const InventoryTable = ({ getInventory }) => {
     };
 
     // Define the batch size, adjust as needed
-    const batchSize = 10; // Example batch size
-    const batches = createBatches(productArr, batchSize);
+    const batchSize = rangeValue; // Example batch size
+    const batches = createBatches(productsToImport, rangeValue);
 
+    let curBatch = 0;
     for (const batch of batches) {
       try {
         const importPromises = batch.map(async (product) => {
-          const toastId = toast.loading(`Importing product ${product.id}`);
           try {
             const res = await processProductImport(product);
 
             if (res.error) {
-              toast.update(toastId, createToastConfig("error", res.error));
+              console.log(res.error);
+              return res.error;
             } else {
               setProgress((preProgress) => [...preProgress, res[0]]);
-              toast.update(
-                toastId,
-                createToastConfig("success", `Product ${product.id} imported`)
-              );
               return res[0];
             }
           } catch (error) {
             console.error(`Error importing product ${product.id}:`, error);
-            toast.update(
-              toastId,
-              createToastConfig(
-                "error",
-                `Error importing product ${product.id}`
-              )
-            );
+            return error;
           }
         });
 
         const results = await Promise.all(importPromises);
-
+        console.log(results);
+        curBatch++; // Increment the batch number for each iteration
+        setProgress((preProgress) => [
+          ...preProgress,
+          "Completed Batch " + curBatch.toString() + "/" + batches.length,
+        ]);
         const updatedTableData = inventory.map((inv) => {
           if (results.some((res) => res.square_id === inv.id)) {
             const matchedItem = results.find((res) => res.square_id === inv.id);
@@ -131,7 +144,7 @@ const InventoryTable = ({ getInventory }) => {
               },
             };
           }
-          return item;
+          return inv;
         });
         dispatch(setInventory(updatedTableData));
       } catch (error) {
@@ -374,7 +387,10 @@ const InventoryTable = ({ getInventory }) => {
             )}
             <button
               type="button"
-              onClick={() => importProduct([row.original])}
+              onClick={() => {
+                setIsDialogOpen(true);
+                setProductsToImport([row.original]);
+              }}
               disabled={isImporting}
               className="rounded bg-indigo-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
             >
@@ -428,17 +444,8 @@ const InventoryTable = ({ getInventory }) => {
     setIsDialogOpen(false);
   };
 
-  const [steps, setSteps] = useState([
-    { name: "Step 1", href: "#", status: "current" },
-    { name: "Step 2", href: "#", status: "upcoming" },
-    { name: "Step 3", href: "#", status: "upcoming" },
-  ]);
-  const [currentStep, setCurrentStep] = useState(0);
-
-  const [rangeValue, setRangeValue] = useState(15);
-
   const handleRangeChange = (event) => {
-    setRangeValue(event.target.value);
+    setRangeValue(Number(event.target.value));
   };
 
   const handleStepChange = (direction) => {
@@ -517,13 +524,13 @@ const InventoryTable = ({ getInventory }) => {
                 <legend className="sr-only">data to sync</legend>
                 <div className="flex gap-x-6 gap-y-4 items-start flex-wrap">
                   <label
-                    for="title"
+                    htmlFor="title"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       required
-                      checked
+                      checked={dataToImport.title}
                       disabled
                       id="title"
                       className="h-full !m-0"
@@ -531,13 +538,13 @@ const InventoryTable = ({ getInventory }) => {
                     Title
                   </label>
                   <label
-                    for="SKU"
+                    htmlFor="SKU"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       required
-                      checked
+                      checked={dataToImport.sku}
                       disabled
                       id="SKU"
                       className="h-full !m-0"
@@ -545,46 +552,93 @@ const InventoryTable = ({ getInventory }) => {
                     SKU
                   </label>
                   <label
-                    for="price"
+                    htmlFor="price"
                     className="flex items-center gap-1 leading-none"
                   >
-                    <input type="checkbox" id="price" className="h-full !m-0" />
+                    <input
+                      type="checkbox"
+                      id="price"
+                      className="h-full !m-0"
+                      checked={dataToImport.price}
+                      onChange={() =>
+                        setDataToImport({
+                          ...dataToImport,
+                          price: !dataToImport.price,
+                        })
+                      }
+                    />
                     Price
                   </label>
                   <label
-                    for="description"
+                    htmlFor="description"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       id="description"
+                      checked={dataToImport.description}
+                      onChange={() =>
+                        setDataToImport({
+                          ...dataToImport,
+                          description: !dataToImport.description,
+                        })
+                      }
                       className="h-full !m-0"
                     />
                     Description
                   </label>
                   <label
-                    for="image"
+                    htmlFor="image"
                     className="flex items-center gap-1 leading-none"
                   >
-                    <input type="checkbox" id="image" className="h-full !m-0" />
+                    <input
+                      type="checkbox"
+                      id="image"
+                      className="h-full !m-0"
+                      checked={dataToImport.image}
+                      onChange={() =>
+                        setDataToImport({
+                          ...dataToImport,
+                          image: !dataToImport.image,
+                        })
+                      }
+                    />
                     Image
                   </label>
                   <label
-                    for="categories"
+                    htmlFor="categories"
                     className="flex items-center gap-1 leading-none"
                   >
                     <input
                       type="checkbox"
                       id="categories"
                       className="h-full !m-0"
+                      checked={dataToImport.categories}
+                      onChange={() =>
+                        setDataToImport({
+                          ...dataToImport,
+                          categories: !dataToImport.categories,
+                        })
+                      }
                     />
                     Categories
                   </label>
                   <label
-                    for="stock"
+                    htmlFor="stock"
                     className="flex items-center gap-1 leading-none"
                   >
-                    <input type="checkbox" id="stock" className="h-full !m-0" />
+                    <input
+                      type="checkbox"
+                      id="stock"
+                      className="h-full !m-0"
+                      checked={dataToImport.stock}
+                      onChange={() =>
+                        setDataToImport({
+                          ...dataToImport,
+                          stock: !dataToImport.stock,
+                        })
+                      }
+                    />
                     Stock
                   </label>
                 </div>
@@ -603,7 +657,7 @@ const InventoryTable = ({ getInventory }) => {
                 image import.
               </p>
 
-              <div class="relative mb-6 mt-3">
+              <div className="relative mb-6 mt-3">
                 <label htmlFor="labels-range-input" className="sr-only">
                   Labels range
                 </label>
@@ -661,12 +715,26 @@ const InventoryTable = ({ getInventory }) => {
             <div>
               <h4 className="text-base mb-4">Review</h4>
               <p>
-                You are about to import #NUM products in batches of #BATCHES.
-                Existing products will have their data updated, while new
-                entries will be created for products not already in the system.
+                You are about to import{" "}
+                <span className="font-semibold">{productsToImport.length}</span>{" "}
+                products in batches of{" "}
+                <span className="font-semibold">{rangeValue}</span>. Existing
+                products will have their data updated, while new entries will be
+                created for products not already in the system.
               </p>
               <p className="mt-2">
                 You have chosen to import/sync the following:
+                <ul className="flex gap-2 mt-2 flex-wrap">
+                  {Object.keys(dataToImport).map((key) => {
+                    if (dataToImport[key]) {
+                      return (
+                        <li className="p-2 border border-gray-300 uppercase text-xs font-semibold">
+                          {key}
+                        </li>
+                      );
+                    }
+                  })}
+                </ul>
               </p>
               <div className="flex items-center mt-10 justify-end gap-2">
                 <button
@@ -684,7 +752,7 @@ const InventoryTable = ({ getInventory }) => {
                   type="button"
                   onClick={() => {
                     handleStepChange("forward");
-                    importProduct(reformattedData);
+                    importProduct();
                   }}
                   className="relative inline-flex items-center rounded-md bg-red-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
                 >
@@ -706,13 +774,20 @@ const InventoryTable = ({ getInventory }) => {
                     <div
                       className="h-full bg-blue-500 rounded-lg"
                       style={{
-                        width: `${(progress.length / importCount) * 100}%`,
+                        width: `${
+                          (progress.filter((prg) => typeof prg !== "string")
+                            .length /
+                            importCount) *
+                          100
+                        }%`,
                       }}
                     ></div>
                   </div>
                   {/* Progress text */}
                   <div className="text-sm text-gray-500 mt-1">
-                    Imported {progress.length} of {importCount} products
+                    Imported{" "}
+                    {progress.filter((prg) => typeof prg !== "string").length}{" "}
+                    of {importCount} products
                   </div>
                 </div>
                 {/* Logger container with scroll */}
@@ -724,11 +799,13 @@ const InventoryTable = ({ getInventory }) => {
                     return (
                       <p
                         className={`break-words ${
-                          prog.status === "success"
+                          prog.status && prog.status === "success"
                             ? "text-green-500"
-                            : "text-red-500"
+                            : prog.status && prog.status === "failed"
+                            ? "text-red-500"
+                            : "text-blue-500"
                         }`}
-                        key={prog.square_id}
+                        key={prog.square_id || prog}
                       >
                         {JSON.stringify(prog)}
                       </p>
@@ -807,7 +884,10 @@ const InventoryTable = ({ getInventory }) => {
           <div className="flex justify-end items-center">
             <button
               type="button"
-              onClick={() => setIsDialogOpen(true)}
+              onClick={() => {
+                setProductsToImport(reformattedData);
+                setIsDialogOpen(true);
+              }}
               className="relative inline-flex items-center rounded-md bg-indigo-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
             >
               <ArrowDownOnSquareStackIcon

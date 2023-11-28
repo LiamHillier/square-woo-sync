@@ -134,7 +134,7 @@ class SquareImport extends SquareHelper
      * @param string $image_url The URL of the image to import.
      * @return int|false The attachment ID on success, false on failure.
      */
-    private function import_image_from_url($image_url, $square_image_id)
+    private function import_image_from_url($image_url, $square_image_id, $product_id)
     {
         require_once(ABSPATH . 'wp-admin/includes/media.php');
         require_once(ABSPATH . 'wp-admin/includes/file.php');
