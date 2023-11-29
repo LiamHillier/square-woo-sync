@@ -205,12 +205,14 @@ class SquareController extends RESTController
         }
 
         $product =  $request->get_param('product');
+        $dataToImport =  $request->get_param('datatoimport');
+        error_log(json_encode($dataToImport));
 
         $squareImport = new SquareImport();
 
         if ($token) {
             $this->clear_progress_data();
-            $wooProduct = $squareImport->import_products($product);
+            $wooProduct = $squareImport->import_products($product, $dataToImport);
             return rest_ensure_response($wooProduct);
         } else {
             return rest_ensure_response(new WP_Error(401, 'Access token not set'));

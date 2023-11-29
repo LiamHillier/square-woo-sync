@@ -170,7 +170,7 @@ const InventoryTable = ({ getInventory }) => {
       return await apiFetch({
         path: "/sws/v1/square-inventory/import",
         method: "POST",
-        data: { product: [inventoryMatch] },
+        data: { product: [inventoryMatch], datatoimport: dataToImport },
       });
     } catch (error) {
       return { error: error.message };

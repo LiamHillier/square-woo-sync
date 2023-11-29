@@ -8,10 +8,12 @@ use Pixeldev\SWS\Square\SquareHelper;
 class SquareImport extends SquareHelper
 {
 
+
     public function __construct()
     {
         parent::__construct();
     }
+
 
     /**
      * Imports products from Square to WooCommerce.
@@ -19,19 +21,18 @@ class SquareImport extends SquareHelper
      * @param array $square_products The products to import.
      * @return array The results of the import process.
      */
-    public function import_products($square_products)
+    public function import_products($square_products, $data_to_import)
     {
         $results = [];
 
         foreach ($square_products as $square_product) {
             try {
                 $wc_product_data = $this->map_square_product_to_woocommerce($square_product);
+                $product_id = $this->create_or_update_woocommerce_product($wc_product_data, $data_to_import);
 
-                $product_id = $this->create_or_update_woocommerce_product($wc_product_data);
-
-                if ($product_id) {
+                if ($product_id !== false) {
                     $results[] = ['status' => 'success', 'product_id' => $product_id, 'square_id' => $square_product['id'], 'message' => 'Product imported successfully'];
-                    $this->update_import_progress($product_id, $square_product['id'], 'success', 'Product import successfully');
+                    $this->update_import_progress($product_id, $square_product['id'], 'success', 'Product imported successfully');
                 } else {
                     $results[] = ['status' => 'failed', 'product_id' => null, 'square_id' => $square_product['id'], 'message' => 'Failed to import product'];
                     $this->update_import_progress(null, $square_product['id'], 'failed', 'Failed to import product');
@@ -45,17 +46,22 @@ class SquareImport extends SquareHelper
         return $results;
     }
 
-    private function update_import_progress($product_id, $square_id, $status, $message,)
+    private function update_import_progress($product_id, $square_id, $status, $message)
     {
         global $wpdb;
-        $wpdb->insert($wpdb->prefix . 'sws_import_progress', [
+
+        $table_name = $wpdb->prefix . 'sws_import_progress';
+        $data = [
             'product_id' => $product_id,
             'square_id' => $square_id,
-            'status'     => $status,
-            'message'    => $message,
-            'timestamp'  => current_time('mysql')
-        ]);
+            'status' => $status,
+            'message' => $message,
+            'timestamp' => current_time('mysql')
+        ];
+
+        $wpdb->insert($table_name, $data, ['%d', '%d', '%s', '%s', '%s']);
     }
+
 
 
     /**
@@ -66,6 +72,7 @@ class SquareImport extends SquareHelper
      */
     private function map_square_product_to_woocommerce($square_product)
     {
+        error_log(json_encode($square_product));
         $settings = get_option('sws_settings', []);
         $wooSuffix = isset($settings['woo_suffix']) ? "-" . $settings['woo_suffix'] : '-sws';
         $wc_product_data = [];
@@ -74,7 +81,20 @@ class SquareImport extends SquareHelper
         $wc_product_data['name'] = $square_product['item_data']['name'];
         $wc_product_data['description'] = $square_product['item_data']['description_plaintext'] ?? '';
         $wc_product_data['type'] = count($square_product['item_data']['variations']) > 1 ? 'variable' : 'simple';
-        $wc_product_data['sku'] = $square_product['item_data']['variations'][0]['item_variation_data']['sku'] .  $wooSuffix;
+        $wc_product_data['sku'] = $square_product['item_data']['variations'][0]['item_variation_data']['sku'] . $wooSuffix;
+
+        $category_name = isset($square_product['item_data']['category_name']) ? sanitize_text_field($square_product['item_data']['category_name']) : '';
+
+        if (!empty($category_name)) {
+            // Validate and sanitize category name
+            if (preg_match('/^[A-Za-z0-9\-]+$/', $category_name)) {
+                $wc_product_data['category'] = $category_name;
+            } else {
+                // Handle invalid category name
+                $error_message = 'Invalid category name: ' . $category_name;
+                error_log($error_message);
+            }
+        }
 
         // Map pricing, SKU, and variations for variable products
         $wc_product_data['variations'] = [];
@@ -128,7 +148,7 @@ class SquareImport extends SquareHelper
 
 
         // Check if the image already exists in the media library
-        $existing_image_id = $this->find_existing_image_id($image_url);
+        $existing_image_id = $this->find_existing_image_id($square_image_id);
         if ($existing_image_id) {
             return $existing_image_id;
         }
@@ -155,6 +175,7 @@ class SquareImport extends SquareHelper
      * @param string $image_url The URL of the image to find.
      * @return int|null The ID of the existing image, or null if not found.
      */
+
     private function find_existing_image_id($square_image_id)
     {
         global $wpdb;
@@ -163,7 +184,12 @@ class SquareImport extends SquareHelper
             "SELECT post_id FROM $wpdb->postmeta WHERE meta_key = 'square_image_id' AND meta_value = %s",
             $square_image_id
         );
+
         $result = $wpdb->get_var($query);
+
+        if ($wpdb->last_error) {
+            error_log('Database query error: ' . $wpdb->last_error);
+        }
 
         return $result ? intval($result) : null;
     }
@@ -177,7 +203,7 @@ class SquareImport extends SquareHelper
      * @param array $wc_product_data The WooCommerce product data.
      * @return int|bool The ID of the product if successful, or false on failure.
      */
-    private function create_or_update_woocommerce_product($wc_product_data)
+    private function create_or_update_woocommerce_product($wc_product_data, $data_to_import)
     {
         try {
             $product_id = wc_get_product_id_by_sku($wc_product_data['sku']);
@@ -186,21 +212,11 @@ class SquareImport extends SquareHelper
             // Set common product properties
             $product->set_name($wc_product_data['name']);
             $product->set_sku($wc_product_data['sku']);
-            $product->set_description($wc_product_data['description']);
 
 
-
-            // Set the first image as the featured image and the rest as the gallery
-            if (!empty($wc_product_data['image_ids'])) {
-                $featured_image_id = array_shift($wc_product_data['image_ids']);
-                $product->set_image_id($featured_image_id); // Set featured image
-
-                if (!empty($wc_product_data['image_ids'])) {
-                    $product->set_gallery_image_ids($wc_product_data['image_ids']); // Set gallery images
-                }
+            if ($data_to_import->description && isset($wc_product_data['description'])) {
+                $product->set_description($wc_product_data['description']);
             }
-
-
 
 
             if ($wc_product_data['type'] === 'variable') {
@@ -246,7 +262,10 @@ class SquareImport extends SquareHelper
                     $variation = $variation_id ? new \WC_Product_Variation($variation_id) : new \WC_Product_Variation();
                     $variation->set_parent_id($product->get_id());
                     $variation->set_sku($variation_data['sku']);
-                    $variation->set_regular_price($variation_data['price']);
+
+                    if ($data_to_import->price && isset($variation_data['price'])) {
+                        $variation->set_regular_price($variation_data['price']);
+                    }
 
                     $variation_attributes = [];
                     foreach ($variation_data['attributes'] as $attribute) {
@@ -262,7 +281,9 @@ class SquareImport extends SquareHelper
                 }
             } else {
                 // For simple products
-                $product->set_regular_price($wc_product_data['price']);
+                if ($data_to_import->price && isset($wc_product_data['price'])) {
+                    $product->set_regular_price($wc_product_data['price']);
+                }
 
                 // Handle attributes for simple products (if any)
                 $attributes = [];
@@ -287,9 +308,21 @@ class SquareImport extends SquareHelper
             // After the product is created/updated and has an ID
             $product_id = $product->get_id();
 
+
+            // Handle category assignment
+            if ($data_to_import->categories && !empty($wc_product_data['category'])) {
+                $category_name = $wc_product_data['category'];
+                $category_id = $this->get_or_create_category($category_name);
+
+                if ($category_id) {
+                    // Assign category to the product
+                    wp_set_object_terms($product_id, $category_id, 'product_cat');
+                    $product->save(); // Save the product with the category
+                }
+            }
+
             // Check if there are images to import
-            if (!empty($wc_product_data['images'])) {
-                //
+            if ($data_to_import->image && !empty($wc_product_data['images'])) {
                 $product->set_image_id('');
                 $product->set_gallery_image_ids(array()); // Remove existing gallery images
                 $imported_image_ids = [];
@@ -302,22 +335,42 @@ class SquareImport extends SquareHelper
                     }
                 }
 
-                // Set the first image as the featured image and the rest as the gallery
+                // Set the first image as the featured image
                 if (!empty($imported_image_ids)) {
                     $featured_image_id = array_shift($imported_image_ids);
                     $product->set_image_id($featured_image_id); // Set featured image
-
-                    // if (!empty($imported_image_ids)) {
-                    //     $product->set_gallery_image_ids($imported_image_ids); // Set gallery images
-                    // }
+                    $product->save(); // Save the product with the new images
                 }
             }
 
-            $product->save(); // Save the product with the new images
             return $product_id;
         } catch (\Exception $e) {
             error_log('Error creating/updating product: ' . $e->getMessage());
             return false; // Return false in case of error
+        }
+    }
+
+
+
+    private function get_or_create_category($category_name)
+    {
+        // Check if the category already exists
+        $term = term_exists($category_name, 'product_cat');
+
+        if ($term !== 0 && $term !== null) {
+            // Category exists, return its ID
+            return (int) $term['term_id'];
+        } else {
+            // Category does not exist, create it
+            $new_term = wp_insert_term($category_name, 'product_cat');
+
+            if (!is_wp_error($new_term)) {
+                return $new_term['term_id'];
+            } else {
+                // Handle the error appropriately
+                error_log('Error creating category: ' . $new_term->get_error_message());
+                return false;
+            }
         }
     }
 
