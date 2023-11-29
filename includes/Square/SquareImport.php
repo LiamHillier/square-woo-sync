@@ -33,8 +33,8 @@ class SquareImport extends SquareHelper
                     $results[] = ['status' => 'success', 'product_id' => $product_id, 'square_id' => $square_product['id'], 'message' => 'Product imported successfully'];
                     $this->update_import_progress($product_id, $square_product['id'], 'success', 'Product import successfully');
                 } else {
-                    $results[] = ['status' => 'failure', 'product_id' => null, 'square_id' => $square_product['id'], 'message' => 'Failed to import product'];
-                    $this->update_import_progress(null, $square_product['id'], 'failure', 'Failed to import product');
+                    $results[] = ['status' => 'failed', 'product_id' => null, 'square_id' => $square_product['id'], 'message' => 'Failed to import product'];
+                    $this->update_import_progress(null, $square_product['id'], 'failed', 'Failed to import product');
                 }
             } catch (\Exception $e) {
                 error_log('Error importing product: ' . $e->getMessage());
@@ -105,23 +105,8 @@ class SquareImport extends SquareHelper
             $image_urls = $square_product['item_data']['image_urls'];
             $square_image_ids = $square_product['item_data']['image_ids'];
 
-            $image_ids = array_map(function ($url, $square_image_id) {
-                // Check if the image already exists by Square image ID
-                // $existing_image_id = $this->find_existing_image_id($square_image_id);
-                // if ($existing_image_id) {
-                //     return $existing_image_id;
-                // } else {
-                // Import the image and store the Square image ID
-                return $this->import_image_from_url($url, $square_image_id);
-                // }
-            }, $image_urls, $square_image_ids);
-
-            // Filter out any false values which indicate failed imports
-            $image_ids = array_filter($image_ids);
-
-            if (!empty($image_ids)) {
-                $wc_product_data['image_ids'] = $image_ids;
-            }
+            // Instead of importing images here, just store the image URLs and Square image IDs
+            $wc_product_data['images'] = array_combine($square_image_ids, $image_urls);
         }
 
         return $wc_product_data;
@@ -148,11 +133,8 @@ class SquareImport extends SquareHelper
         //     return $existing_image_id;
         // }
 
-        // Temporarily set the post as the first post (change this as needed)
-        $temp_post_id = 0;
-
         // Download image and create a new attachment
-        $image_id = media_sideload_image($image_url, $temp_post_id, 0, 'id');
+        $image_id = media_sideload_image($image_url, $product_id, 0, 'id');
         if (!is_wp_error($image_id)) {
             // Assume $square_image_id is the image ID from Square
             add_post_meta($image_id, 'square_image_id', $square_image_id, true);
@@ -206,9 +188,7 @@ class SquareImport extends SquareHelper
             $product->set_sku($wc_product_data['sku']);
             $product->set_description($wc_product_data['description']);
 
-            // First, clear the existing featured image and gallery images
-            $product->set_image_id(''); // Remove existing featured image
-            $product->set_gallery_image_ids(array()); // Remove existing gallery images
+
 
             // Set the first image as the featured image and the rest as the gallery
             if (!empty($wc_product_data['image_ids'])) {
@@ -303,10 +283,38 @@ class SquareImport extends SquareHelper
                     $product->set_attributes($attributes);
                 }
             }
-
-            // Save the product and return its ID
             $product->save();
-            return $product->get_id();
+            // After the product is created/updated and has an ID
+            $product_id = $product->get_id();
+
+            // Check if there are images to import
+            if (!empty($wc_product_data['images'])) {
+                //
+                $product->set_image_id('');
+                $product->set_gallery_image_ids(array()); // Remove existing gallery images
+                $imported_image_ids = [];
+
+                // Loop through each image URL and import it
+                foreach ($wc_product_data['images'] as $square_image_id => $image_url) {
+                    $imported_image_id = $this->import_image_from_url($image_url, $square_image_id, $product_id);
+                    if ($imported_image_id) {
+                        $imported_image_ids[] = $imported_image_id;
+                    }
+                }
+
+                // Set the first image as the featured image and the rest as the gallery
+                if (!empty($imported_image_ids)) {
+                    $featured_image_id = array_shift($imported_image_ids);
+                    $product->set_image_id($featured_image_id); // Set featured image
+
+                    // if (!empty($imported_image_ids)) {
+                    //     $product->set_gallery_image_ids($imported_image_ids); // Set gallery images
+                    // }
+                }
+            }
+
+            $product->save(); // Save the product with the new images
+            return $product_id;
         } catch (\Exception $e) {
             error_log('Error creating/updating product: ' . $e->getMessage());
             return false; // Return false in case of error
