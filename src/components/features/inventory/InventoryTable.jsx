@@ -126,8 +126,9 @@ const InventoryTable = ({ getInventory }) => {
             const matchedItem = results.find((res) => res.square_id === inv.id);
             return {
               ...inv,
-              woocommerce_product_id:
-                matchedItem.woocommerce_product_id || null,
+              woocommerce_product_id: matchedItem.product_id
+                ? matchedItem.product_id
+                : null,
               imported: matchedItem.status === "success" ? true : false,
               status: matchedItem.status,
               item_data: {
