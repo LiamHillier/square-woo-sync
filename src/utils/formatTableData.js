@@ -45,7 +45,7 @@ export function reformatDataForTable(inventory) {
       name: item.item_data?.name || "",
       stock:
         minStock === maxStock ? `${minStock}` : `${minStock} - ${maxStock}`,
-      image: item.item_data?.image_urls ? item.item_data.image_urls[0] : null,
+      image: item.item_data?.image_urls ? item.item_data.image_urls : null,
       woocommerce_product_id: item.woocommerce_product_id || null,
       type:
         (item.item_data?.variations?.length || 0) > 1 ? "Variable" : "Simple",

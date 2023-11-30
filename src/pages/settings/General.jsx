@@ -131,13 +131,6 @@ export default function Settings() {
 
         <main className="px-4 sm:px-6 lg:flex-auto lg:px-0">
           <AccessToken />
-          <SKUSuffix
-            title="Are you sure you want to change the Woo SKU suffix?"
-            description="Changing the Woo SKU suffix will require you to delete and re-import all the products you wish to be synced with Square"
-            suffix={settings.woo_suffix}
-            setSuffix={(val) => setSettings({ ...settings, woo_suffix: val })}
-            onConfirm={() => updateSettings("woo_suffix", settings.woo_suffix)}
-          />
           <Webhook />
           <div className="px-4 pt-5 sm:px-6"></div>
           <div className="px-4 pb-5 sm:px-6">

@@ -29,6 +29,7 @@ import { reformatDataForTable } from "../../../utils/formatTableData";
 import { filterRows } from "../../../utils/filterRows";
 import DialogWrapper from "../../Dialog";
 import { range } from "lodash";
+import { classNames } from "../../../utils/classHelper";
 
 const InventoryTable = ({ getInventory }) => {
   const [loadingProductId, setLoadingProductId] = useState(null);
@@ -273,15 +274,29 @@ const InventoryTable = ({ getInventory }) => {
       width: 50,
       cell: ({ getValue }) => {
         const value = getValue();
+        console.log(value);
         if (value) {
           return (
-            <div className="flex items-center gap-2">
-              <img
-                src={value}
-                width={40}
-                height={40}
-                className="w-10 h-10 rounded object-cover flex items-center gap-2 shadow"
-              />
+            <div className="group relative w-10 h-10">
+              {value.map((url, idx) => {
+                return (
+                  <img
+                    key={idx}
+                    src={url}
+                    width={40}
+                    height={40}
+                    className={classNames(
+                      "w-10 h-10 rounded object-cover flex items-center gap-2 shadow top-0 absolute transition-transform duration-300",
+                      idx === 0 &&
+                        value.length > 1 &&
+                        "group-hover:-translate-y-2 rotate-12 group-hover:rotate-[-16deg]",
+                      idx === 1 &&
+                        value.length > 1 &&
+                        "group-hover:translate-y-2 group-hover:rotate-[16deg]"
+                    )}
+                  />
+                );
+              })}
             </div>
           );
         } else {
