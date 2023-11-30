@@ -1,7 +1,7 @@
 import { flexRender } from "@tanstack/react-table";
 import { classNames } from "../../../../utils/classHelper";
 
-const TableRow = ({ row, loadingProductId }) => {
+const TableRow = ({ row, loadingProductId, toggleExpanded }) => {
   const isSubRow = row.original.type === "variation";
   const isExpanded = row.getIsExpanded();
   const isLoading = row.original.id === loadingProductId;
@@ -14,6 +14,7 @@ const TableRow = ({ row, loadingProductId }) => {
   return (
     <tr
       key={row.id}
+      onClick={toggleExpanded}
       className={classNames(rowClassNames, isExpanded ? "bg-indigo-300" : "")}
     >
       {row.getVisibleCells().map((cell, idx) => {
@@ -24,7 +25,7 @@ const TableRow = ({ row, loadingProductId }) => {
               idx === row.getVisibleCells().length - 1
                 ? "text-right pr-4"
                 : "text-left"
-            } `}
+            } ${row.getCanExpand() && "cursor-pointer"} `}
           >
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </td>

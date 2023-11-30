@@ -72,29 +72,20 @@ class SquareImport extends SquareHelper
      */
     private function map_square_product_to_woocommerce($square_product)
     {
-        error_log(json_encode($square_product));
-        $settings = get_option('sws_settings', []);
-        $wooSuffix = isset($settings['woo_suffix']) ? "-" . $settings['woo_suffix'] : '-sws';
+
+
         $wc_product_data = [];
 
         // Map basic product details from Square to WooCommerce
         $wc_product_data['name'] = $square_product['item_data']['name'];
         $wc_product_data['description'] = $square_product['item_data']['description_plaintext'] ?? '';
         $wc_product_data['type'] = count($square_product['item_data']['variations']) > 1 ? 'variable' : 'simple';
-        $wc_product_data['sku'] = $square_product['item_data']['variations'][0]['item_variation_data']['sku'] . $wooSuffix;
+        $wc_product_data['sku'] = $square_product['item_data']['variations'][0]['item_variation_data']['sku'];
+        $wc_product_data['square_product_id'] = $square_product['id'];
 
         $category_name = isset($square_product['item_data']['category_name']) ? sanitize_text_field($square_product['item_data']['category_name']) : '';
+        $wc_product_data['category'] = $category_name;
 
-        if (!empty($category_name)) {
-            // Validate and sanitize category name
-            if (preg_match('/^[A-Za-z0-9\-]+$/', $category_name)) {
-                $wc_product_data['category'] = $category_name;
-            } else {
-                // Handle invalid category name
-                $error_message = 'Invalid category name: ' . $category_name;
-                error_log($error_message);
-            }
-        }
 
         // Map pricing, SKU, and variations for variable products
         $wc_product_data['variations'] = [];
@@ -103,7 +94,9 @@ class SquareImport extends SquareHelper
                 'name' => $variation['item_variation_data']['name'],
                 'sku' => $variation['item_variation_data']['sku'],
                 'price' => $variation['item_variation_data']['price_money']['amount'] / 100,
-                'attributes' => []
+                'attributes' => [],
+                'stock' => intval($variation['inventory_count'] ?? 0),
+                'variation_square_id' => $variation['id']
             ];
 
             if (isset($variation['item_option_values'])) {
@@ -118,6 +111,8 @@ class SquareImport extends SquareHelper
             $wc_product_data['variations'][] = $variation_data;
         }
 
+
+        $wc_product_data['stock'] = intval($square_product['item_data']['variations'][0]['inventory_count'] ?? '0');
         $wc_product_data['price'] = $square_product['item_data']['variations'][0]['item_variation_data']['price_money']['amount'] / 100;
 
         // Handle Multiple Image Imports
@@ -205,16 +200,31 @@ class SquareImport extends SquareHelper
      */
     private function create_or_update_woocommerce_product($wc_product_data, $data_to_import)
     {
+
         try {
-            $product_id = wc_get_product_id_by_sku($wc_product_data['sku']);
+            global $wpdb;
+            $meta_key = 'square_product_id';
+            $meta_value = $wc_product_data['square_product_id'];
+
+            $query = $wpdb->prepare(
+                "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s AND meta_value = %s LIMIT 1",
+                $meta_key,
+                $meta_value
+            );
+
+            $product_id = $wpdb->get_var($query);
+
             $product = $product_id ? wc_get_product($product_id) : ($wc_product_data['type'] === 'simple' ? new \WC_Product_Simple() : new \WC_Product_Variable());
 
             // Set common product properties
             $product->set_name($wc_product_data['name']);
-            $product->set_sku($wc_product_data['sku']);
+            if ($wc_product_data['type'] === 'simple') {
+                $product->set_sku($wc_product_data['sku']);
+            }
 
+            $product->update_meta_data('square_product_id', $wc_product_data['square_product_id']);
 
-            if ($data_to_import->description && isset($wc_product_data['description'])) {
+            if ($data_to_import['description'] && isset($wc_product_data['description'])) {
                 $product->set_description($wc_product_data['description']);
             }
 
@@ -263,7 +273,13 @@ class SquareImport extends SquareHelper
                     $variation->set_parent_id($product->get_id());
                     $variation->set_sku($variation_data['sku']);
 
-                    if ($data_to_import->price && isset($variation_data['price'])) {
+                    if ($data_to_import['stock'] && isset($variation_data['stock'])) {
+
+                        $variation->set_manage_stock(true);
+                        $variation->set_stock_quantity($variation_data['stock']);
+                    }
+
+                    if ($data_to_import['price'] && isset($variation_data['price'])) {
                         $variation->set_regular_price($variation_data['price']);
                     }
 
@@ -277,12 +293,19 @@ class SquareImport extends SquareHelper
 
                     $variation->set_attributes($variation_attributes);
 
+                    $variation->update_meta_data('square_product_id', $variation_data['variation_square_id']);
+
                     $variation->save();
                 }
             } else {
                 // For simple products
-                if ($data_to_import->price && isset($wc_product_data['price'])) {
+                if ($data_to_import['price'] && isset($wc_product_data['price'])) {
                     $product->set_regular_price($wc_product_data['price']);
+                }
+
+                if ($data_to_import['stock'] && isset($wc_product_data['stock'])) {
+                    $product->set_manage_stock(true);
+                    $product->set_stock_quantity($wc_product_data['stock']);
                 }
 
                 // Handle attributes for simple products (if any)
@@ -310,7 +333,7 @@ class SquareImport extends SquareHelper
 
 
             // Handle category assignment
-            if ($data_to_import->categories && !empty($wc_product_data['category'])) {
+            if ($data_to_import['categories'] && !empty($wc_product_data['category'])) {
                 $category_name = $wc_product_data['category'];
                 $category_id = $this->get_or_create_category($category_name);
 
@@ -322,7 +345,7 @@ class SquareImport extends SquareHelper
             }
 
             // Check if there are images to import
-            if ($data_to_import->image && !empty($wc_product_data['images'])) {
+            if ($data_to_import['image'] && !empty($wc_product_data['images'])) {
                 $product->set_image_id('');
                 $product->set_gallery_image_ids(array()); // Remove existing gallery images
                 $imported_image_ids = [];

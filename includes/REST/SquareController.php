@@ -120,7 +120,6 @@ class SquareController extends RESTController
         $wcProductsBySKU = array_column($woocommerceProducts, null, 'sku');
         $categories = $square->getAllSquareCategories();
         $result = [];
-
         foreach ($squareInventory as $squareItem) {
             $itemData = json_decode(json_encode($squareItem), true);
 
@@ -128,7 +127,10 @@ class SquareController extends RESTController
                 $itemData['item_data']['category_name'] = $categories[$itemData['item_data']['category_id']];
             }
 
-            $parentSku = isset($itemData['item_data']['variations'][0]['item_variation_data']['sku']) ? $itemData['item_data']['variations'][0]['item_variation_data']['sku'] . '-sws' : null;
+
+
+
+            $parentSku = isset($itemData['item_data']['variations'][0]['item_variation_data']['sku']) ? $itemData['item_data']['variations'][0]['item_variation_data']['sku'] : null;
 
             // Check if the parent SKU is in the matched SKUs and add WooCommerce product ID
             $itemData['imported'] = false;
@@ -156,6 +158,9 @@ class SquareController extends RESTController
 
         return $result;
     }
+
+
+
 
 
 
@@ -206,7 +211,7 @@ class SquareController extends RESTController
 
         $product =  $request->get_param('product');
         $dataToImport =  $request->get_param('datatoimport');
-        error_log(json_encode($dataToImport));
+
 
         $squareImport = new SquareImport();
 

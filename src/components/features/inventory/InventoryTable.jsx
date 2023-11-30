@@ -93,7 +93,8 @@ const InventoryTable = ({ getInventory }) => {
     // Define the batch size, adjust as needed
     const batchSize = rangeValue; // Example batch size
     const batches = createBatches(productsToImport, rangeValue);
-
+    let updatedTableData = [];
+    let results = [];
     let curBatch = 0;
     for (const batch of batches) {
       try {
@@ -114,46 +115,43 @@ const InventoryTable = ({ getInventory }) => {
           }
         });
 
-        const results = await Promise.all(importPromises);
-        console.log(results);
-        curBatch++; // Increment the batch number for each iteration
+        const batchResults = await Promise.all(importPromises);
+
+        results = [...results, ...batchResults];
+        curBatch++;
         setProgress((preProgress) => [
           ...preProgress,
           "Completed Batch " + curBatch.toString() + "/" + batches.length,
         ]);
-        const updatedTableData = inventory.map((inv) => {
-          if (results.some((res) => res.square_id === inv.id)) {
-            const matchedItem = results.find((res) => res.square_id === inv.id);
-            return {
-              ...inv,
-              woocommerce_product_id: matchedItem.product_id
-                ? matchedItem.product_id
-                : null,
-              imported: matchedItem.status === "success" ? true : false,
-              status: matchedItem.status,
-              item_data: {
-                ...inv.item_data,
-                variations: [
-                  ...inv.item_data.variations.map((variation) => {
-                    return {
-                      ...variation,
-                      imported: matchedItem.status === "success" ? true : false,
-                      status: matchedItem.status,
-                    };
-                  }),
-                ],
-              },
-            };
-          }
-          return inv;
-        });
-        dispatch(setInventory(updatedTableData));
       } catch (error) {
         console.error("Batch Import Error:", error);
       }
     }
-
+    // Update updatedTableData outside of the loop and remove duplicates
+    updatedTableData = inventory.map((inv) => {
+      const matchedItem = results.find((res) => res.square_id === inv.id);
+      if (matchedItem) {
+        return {
+          ...inv,
+          woocommerce_product_id: matchedItem.product_id || null,
+          imported: matchedItem.status === "success",
+          status: matchedItem.status,
+          item_data: {
+            ...inv.item_data,
+            variations: inv.item_data.variations.map((variation) => ({
+              ...variation,
+              imported: matchedItem.status === "success",
+              status: matchedItem.status,
+            })),
+          },
+        };
+      }
+      return inv;
+    });
     // Resetting states after all batches are processed
+    if (updatedTableData) {
+      dispatch(setInventory(updatedTableData));
+    }
     setLoadingProductId(null);
     resetTablePageIndex();
     setIsImporting(false);
@@ -200,7 +198,7 @@ const InventoryTable = ({ getInventory }) => {
         return (
           <>
             {row.getCanExpand() ? (
-              <button onClick={() => row.toggleExpanded()}>
+              <button type="button">
                 {row.getIsExpanded() ? (
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -325,6 +323,11 @@ const InventoryTable = ({ getInventory }) => {
       header: () => "Price",
     },
     {
+      accessorKey: "stock",
+      canSort: true,
+      header: () => "Stock",
+    },
+    {
       accessorKey: "categories",
       header: () => "categories",
       canSort: true,
@@ -382,6 +385,7 @@ const InventoryTable = ({ getInventory }) => {
               <a
                 className="rounded bg-purple-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-purple-500 hover:text-purple-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600 cursor-pointer"
                 href={`/wp-admin/post.php?post=${row.original.woocommerce_product_id}&action=edit`}
+                target="_blank"
               >
                 View Product
               </a>
@@ -908,6 +912,10 @@ const InventoryTable = ({ getInventory }) => {
               <TableRow
                 key={row.id}
                 row={row}
+                toggleExpanded={() => {
+                  if (!row.getCanExpand()) return;
+                  row.toggleExpanded();
+                }}
                 loadingProductId={loadingProductId}
               />
             ))}
