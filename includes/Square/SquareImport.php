@@ -143,10 +143,10 @@ class SquareImport extends SquareHelper
 
 
         // Check if the image already exists in the media library
-        // $existing_image_id = $this->find_existing_image_id($square_image_id);
-        // if ($existing_image_id) {
-        //     return $existing_image_id;
-        // }
+        $existing_image_id = $this->find_existing_image_id($square_image_id);
+        if ($existing_image_id) {
+            return $existing_image_id;
+        }
 
         // Download image and create a new attachment
         $image_id = media_sideload_image($image_url, $product_id, 0, 'id');
@@ -358,10 +358,15 @@ class SquareImport extends SquareHelper
                     }
                 }
 
-                // Set the first image as the featured image
+                // Set the first image as the featured image and remaining as gallery images
                 if (!empty($imported_image_ids)) {
-                    $featured_image_id = array_shift($imported_image_ids);
+                    $featured_image_id = array_shift($imported_image_ids); // Remove and get the first image id
                     $product->set_image_id($featured_image_id); // Set featured image
+
+                    if (!empty($imported_image_ids)) {
+                        $product->set_gallery_image_ids($imported_image_ids); // Set the remaining images as gallery images
+                    }
+
                     $product->save(); // Save the product with the new images
                 }
             }
