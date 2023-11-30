@@ -148,10 +148,10 @@ class SquareImport extends SquareHelper
 
 
         // Check if the image already exists in the media library
-        $existing_image_id = $this->find_existing_image_id($square_image_id);
-        if ($existing_image_id) {
-            return $existing_image_id;
-        }
+        // $existing_image_id = $this->find_existing_image_id($square_image_id);
+        // if ($existing_image_id) {
+        //     return $existing_image_id;
+        // }
 
         // Download image and create a new attachment
         $image_id = media_sideload_image($image_url, $product_id, 0, 'id');
