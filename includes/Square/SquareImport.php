@@ -82,8 +82,8 @@ class SquareImport extends SquareHelper
                 'variation_square_id' => $variation['id']
             ];
 
-            if (isset($variation['item_option_values'])) {
-                foreach ($variation['item_option_values'] as $option) {
+            if (isset($variation['item_variation_data']['item_option_values'])) {
+                foreach ($variation['item_variation_data']['item_option_values'] as $option) {
                     $variation_data['attributes'][] = [
                         'name' => $option['optionName'],
                         'option' => $option['optionValue']
@@ -327,7 +327,6 @@ class SquareImport extends SquareHelper
                     $product->save(); // Save the product with the category
                 }
             }
-            error_log(json_encode($wc_product_data['images']));
             // Check if there are images to import
             if ($data_to_import['image'] && !empty($wc_product_data['images'])) {
                 $product->set_image_id('');
