@@ -274,7 +274,6 @@ const InventoryTable = ({ getInventory }) => {
       width: 50,
       cell: ({ getValue }) => {
         const value = getValue();
-        console.log(value);
         if (value) {
           return (
             <div className="group relative w-10 h-10">
@@ -807,7 +806,14 @@ const InventoryTable = ({ getInventory }) => {
                   <div className="text-sm text-gray-500 mt-1">
                     Imported{" "}
                     {progress.filter((prg) => typeof prg !== "string").length}{" "}
-                    of {importCount} products
+                    of {importCount} products.{" "}
+                    {Number(
+                      (progress.filter((prg) => typeof prg !== "string")
+                        .length /
+                        importCount) *
+                        100
+                    ).toFixed(1)}
+                    %
                   </div>
                 </div>
                 {/* Logger container with scroll */}

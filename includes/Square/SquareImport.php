@@ -32,10 +32,8 @@ class SquareImport extends SquareHelper
 
                 if ($product_id !== false) {
                     $results[] = ['status' => 'success', 'product_id' => $product_id, 'square_id' => $square_product['id'], 'message' => 'Product imported successfully'];
-                    $this->update_import_progress($product_id, $square_product['id'], 'success', 'Product imported successfully');
                 } else {
                     $results[] = ['status' => 'failed', 'product_id' => null, 'square_id' => $square_product['id'], 'message' => 'Failed to import product'];
-                    $this->update_import_progress(null, $square_product['id'], 'failed', 'Failed to import product');
                 }
             } catch (\Exception $e) {
                 error_log('Error importing product: ' . $e->getMessage());
@@ -46,21 +44,6 @@ class SquareImport extends SquareHelper
         return $results;
     }
 
-    private function update_import_progress($product_id, $square_id, $status, $message)
-    {
-        global $wpdb;
-
-        $table_name = $wpdb->prefix . 'sws_import_progress';
-        $data = [
-            'product_id' => $product_id,
-            'square_id' => $square_id,
-            'status' => $status,
-            'message' => $message,
-            'timestamp' => current_time('mysql')
-        ];
-
-        $wpdb->insert($table_name, $data, ['%d', '%d', '%s', '%s', '%s']);
-    }
 
 
 

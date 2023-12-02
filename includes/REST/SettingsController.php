@@ -117,7 +117,7 @@ class SettingsController extends RESTController
         return rest_ensure_response(['message' => 'Access token removed successfully']);
     }
 
-    
+
     public function get_settings(WP_REST_Request $request): WP_REST_Response
     {
         $settings = get_option('sws_settings', []);

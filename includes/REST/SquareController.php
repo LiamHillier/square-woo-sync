@@ -70,44 +70,25 @@ class SquareController extends RESTController
 
 
     /**
-     * Retrieve woocommerce products
+     * Retrieve WooCommerce product data with minimal memory usage.
      *
      * @return array
      */
     public function get_woocommerce_products()
     {
-        $args = [
-            'status' => 'publish',
-            'limit' => -1, // Consider adding a limit or pagination for performance
-            'type' => ['simple', 'variable'],
-        ];
+        global $wpdb;
 
-        $products = wc_get_products($args);
-        $product_data = [];
+        $query = "SELECT p.ID, p.post_title AS name, meta1.meta_value AS sku
+              FROM {$wpdb->prefix}posts AS p
+              LEFT JOIN {$wpdb->prefix}postmeta AS meta1 ON (p.ID = meta1.post_id AND meta1.meta_key = '_sku')
+              WHERE p.post_type IN ('product', 'product_variation')
+              AND p.post_status = 'publish'
+              ORDER BY p.ID";
 
-        foreach ($products as $product) {
-            $product_data[] = [
-                'id' => $product->get_id(),
-                'name' => $product->get_name(),
-                'sku' => $product->get_sku(),
-            ];
+        $results = $wpdb->get_results($query, ARRAY_A);
 
-            // Include variation SKUs for variable products
-            if ($product->is_type('variable')) {
-                foreach ($product->get_children() as $child_id) {
-                    $variation = wc_get_product($child_id);
-                    $product_data[] = [
-                        'id' => $variation->get_id(),
-                        'name' => $variation->get_name(),
-                        'sku' => $variation->get_sku(),
-                    ];
-                }
-            }
-        }
-
-        return $product_data;
+        return $results;
     }
-
 
 
     /**
@@ -117,9 +98,10 @@ class SquareController extends RESTController
      */
     private function compare_skus($squareInventory, $woocommerceProducts, $square)
     {
-        $wcProductsBySKU = array_column($woocommerceProducts, null, 'sku');
+        error_log('comparing');
         $categories = $square->getAllSquareCategories();
         $result = [];
+        error_log('got categories');
         foreach ($squareInventory as $squareItem) {
             $itemData = json_decode(json_encode($squareItem), true);
 
@@ -127,27 +109,35 @@ class SquareController extends RESTController
                 $itemData['item_data']['category_name'] = $categories[$itemData['item_data']['category_id']];
             }
 
-
-
-
+            $skuMapping = [];
             $parentSku = isset($itemData['item_data']['variations'][0]['item_variation_data']['sku']) ? $itemData['item_data']['variations'][0]['item_variation_data']['sku'] : null;
+
+            // Create a mapping of WooCommerce product SKUs to WooCommerce product IDs
+            foreach ($woocommerceProducts as $wcProduct) {
+                $wcSku = $wcProduct['sku'] ?? null;
+                $wcProductId = $wcProduct['id'] ?? null;
+
+                if ($wcSku && $wcProductId) {
+                    $skuMapping[$wcSku] = $wcProductId;
+                }
+            }
 
             // Check if the parent SKU is in the matched SKUs and add WooCommerce product ID
             $itemData['imported'] = false;
-            if ($parentSku && isset($wcProductsBySKU[$parentSku])) {
+            if ($parentSku && isset($skuMapping[$parentSku])) {
                 $itemData['imported'] = true;
-                $itemData['woocommerce_product_id'] = $wcProductsBySKU[$parentSku]['id'];
+                $itemData['woocommerce_product_id'] = $skuMapping[$parentSku];
             }
 
             if (isset($itemData['item_data']['variations'])) {
                 foreach ($itemData['item_data']['variations'] as &$variation) {
-                    $variation['imported'] = false;
                     $variationSku = isset($variation['item_variation_data']['sku']) ? $variation['item_variation_data']['sku'] : null;
 
                     // Check for each variation SKU and add WooCommerce product ID
-                    if ($variationSku && isset($wcProductsBySKU[$variationSku])) {
+                    $variation['imported'] = false;
+                    if ($variationSku && isset($skuMapping[$variationSku])) {
                         $variation['imported'] = true;
-                        $variation['woocommerce_product_id'] = $wcProductsBySKU[$variationSku]['id'];
+                        $variation['woocommerce_product_id'] = $skuMapping[$variationSku];
                     }
                 }
                 unset($variation); // Break the reference with the last element
@@ -181,6 +171,7 @@ class SquareController extends RESTController
             $squareInv = new SquareInventory();
             if ($token) {
                 $inventory = $squareInv->retrieve_inventory();
+                error_log('inventory received');
                 // Additional logic to process or format the inventory data
                 //     -- Get images from square
                 // Retrieve WooCommerce products
@@ -216,128 +207,11 @@ class SquareController extends RESTController
         $squareImport = new SquareImport();
 
         if ($token) {
-            $this->clear_progress_data();
             $wooProduct = $squareImport->import_products($product, $dataToImport);
             return rest_ensure_response($wooProduct);
         } else {
             return rest_ensure_response(new WP_Error(401, 'Access token not set'));
         }
         return rest_ensure_response(new WP_Error(401, 'Cant find access token'));
-    }
-
-    private function get_latest_row_id()
-    {
-        global $wpdb;
-
-        // The table where progress data is stored
-        $table_name = $wpdb->prefix . 'sws_import_progress';
-
-        // Query to retrieve the latest row ID
-        $query = "SELECT MAX(id) FROM $table_name";
-
-        try {
-            $latest_row_id = $wpdb->get_var($query);
-
-            // Check for DB errors
-            if ($wpdb->last_error) {
-                throw new Exception('Database error: ' . $wpdb->last_error);
-            }
-
-            return (int) $latest_row_id;
-        } catch (Exception $e) {
-            // Log the error (or handle it in your preferred way)
-            error_log('Database error: ' . $e->getMessage());
-
-            return 0; // Return 0 in case of an exception or error
-        }
-    }
-
-
-    private function get_progress_data_for_row($rowId)
-    {
-        global $wpdb;
-
-        // The table where progress data is stored
-        $table_name = $wpdb->prefix . 'sws_import_progress';
-
-        // Query to retrieve progress data for the given row ID
-        $query = $wpdb->prepare("SELECT product_id, square_id, status, message FROM $table_name WHERE id = %d", $rowId);
-
-        try {
-            $progress_data = $wpdb->get_row($query, ARRAY_A);
-
-            // Check for DB errors
-            if ($wpdb->last_error) {
-                throw new Exception('Database error: ' . $wpdb->last_error);
-            }
-
-            return $progress_data ?: [];
-        } catch (Exception $e) {
-            // Log the error (or handle it in your preferred way)
-            error_log('Database error: ' . $e->getMessage());
-
-            return []; // Return an empty array in case of an exception or error
-        }
-    }
-
-
-
-    /**
-     * Retrieves the latest progress data from the database.
-     *
-     * @return array|bool
-     */
-    private function get_progress_data()
-    {
-        global $wpdb;
-
-        // The table where progress data is stored
-        $table_name = $wpdb->prefix . 'sws_import_progress';
-
-        // Query to retrieve the latest progress
-        $query = "SELECT * FROM $table_name ORDER BY timestamp DESC LIMIT 1";
-
-        try {
-            // Execute the query
-            $latest_progress = $wpdb->get_row($query, ARRAY_A);
-
-            // Check for DB errors
-            if ($wpdb->last_error) {
-                throw new Exception('Database error: ' . $wpdb->last_error);
-            }
-
-            return $latest_progress ?: false; // Return false if no data found
-        } catch (Exception $e) {
-            // Log the error (or handle it in your preferred way)
-            error_log('Database error: ' . $e->getMessage());
-
-            return false; // Return false in case of an exception
-        }
-    }
-
-
-    /**
-     * Clears the progress data from the database.
-     *
-     * @return void|WP_Error
-     */
-    private function clear_progress_data()
-    {
-        global $wpdb;
-
-        $table_name = $wpdb->prefix . 'sws_import_progress';
-        $query = "DELETE FROM $table_name";
-
-        try {
-            $wpdb->query($query);
-
-            // Check for DB errors
-            if ($wpdb->last_error) {
-                throw new Exception('Database error: ' . $wpdb->last_error);
-            }
-        } catch (Exception $e) {
-            // Return the error as a WP_Error object
-            return new WP_Error('db_error', $e->getMessage());
-        }
     }
 }

@@ -4,7 +4,6 @@ namespace Pixeldev\SWS\Square;
 
 class SquareInventory extends SquareHelper
 {
-
     public function __construct()
     {
         parent::__construct($this->get_access_token());
@@ -17,101 +16,109 @@ class SquareInventory extends SquareHelper
             $item_options = $this->fetchSquareItemOptions();
             $item_option_values = $this->fetchSquareItemOptionValues();
 
-            // Prepare the final array of products with options
-            $enhanced_products = [];
-
-            // Collect variation IDs
+            // Initialize arrays
             $variationIds = [];
-            foreach ($square_products as $product) {
-                $product = json_decode(json_encode($product), true);
+            $imageIds = [];
+
+            // Use foreach loops instead of array_map to avoid memory-intensive operations
+            foreach ($square_products as &$product) {
+                $productCatalogObjectId = $product['id'] ?? null;
+                $product['inventory_count'] = 'Not Available'; // Set default value
+
                 if (isset($product['item_data']['variations'])) {
-                    foreach ($product['item_data']['variations'] as $variation) {
-                        $variationIds[] = $variation['id']; // Collecting variation IDs
-                    }
-                }
-            }
-            // Now use these variation IDs for inventory batch retrieve
-            $inventoryCounts = $this->fetchInventoryCounts($variationIds);
-
-
-            foreach ($square_products as $product) {
-                $product_data = json_decode(json_encode($product), true);
-
-                // Assign inventory count to the product
-                $productCatalogObjectId = $product_data['id'] ?? null;
-                $product_data['inventory_count'] = $inventoryCounts[$productCatalogObjectId] ?? 'Not Available';
-
-                if (isset($product_data['item_data']['variations']) && !empty($product_data['item_data']['variations'])) {
-                    foreach ($product_data['item_data']['variations'] as $index => &$variation) {
-                        $variationOptions = [];
-
+                    foreach ($product['item_data']['variations'] as &$variation) {
                         $variationId = $variation['id'] ?? null;
-                        $variation['inventory_count'] = $inventoryCounts[$variationId] ?? 'Not Available';
-
-                        if (isset($variation['item_variation_data']['item_option_values'])) {
-                            foreach ($variation['item_variation_data']['item_option_values'] as $optionValue) {
-
-
-                                $optionId = $optionValue['item_option_id'];
-                                $optionValueId = $optionValue['item_option_value_id'];
-                                $optionName = $item_options[$optionId] ?? null;
-                                $optionValueName = $item_option_values[$optionId][$optionValueId] ?? null;
-
-                                $variationOptions[] = [
-                                    'optionName' => $optionName,
-                                    'optionValue' => $optionValueName
-                                ];
-                            }
-                        }
-
-                        // Update the variation with the new options
-                        $variation['item_option_values'] = $variationOptions;
+                        $variation['inventory_count'] = 'Not Available'; // Set default value
+                        $variationIds[] = $variationId;
                     }
-                    unset($variation); // Break the reference with the last element
+                    unset($variation); // Break reference with the last element
                 }
 
-                $catalogObjectId = $product_data['id'] ?? null;
-                if ($catalogObjectId && isset($inventoryCounts[$catalogObjectId])) {
-                    $product_data['inventory_count'] = $inventoryCounts[$catalogObjectId];
-                } else {
-                    $product_data['inventory_count'] = 'Not Available';
-                }
-
-                // Fetch and assign image URL to the product
-                if (isset($product_data['item_data']['image_ids'])) {
-                    $product_data['item_data']['image_urls'] = [];
-                    foreach ($product_data['item_data']['image_ids'] as $id) {
-                        $product_data['item_data']['image_urls'][] = $this->fetchSquareImageUrl($id);
+                if (isset($product['item_data']['image_ids'])) {
+                    foreach ($product['item_data']['image_ids'] as $id) {
+                        $imageIds[] = $id;
                     }
                 }
-
-                // Add the enhanced product data to the final array
-                $enhanced_products[] = $product_data;
             }
+            unset($product); // Break reference to the last element
 
-            return $enhanced_products;
+            $inventoryCounts = $this->fetchInventoryCounts(array_unique($variationIds));
+            $imageUrls = $this->fetchSquareImageUrls(array_unique($imageIds));
+
+            foreach ($square_products as &$product) {
+                $this->enhanceProduct($product, $inventoryCounts, $item_options, $item_option_values, $imageUrls);
+            }
+            unset($product); // Break reference to the last element
+
+            return $square_products;
         } catch (\Exception $e) {
-            // Log the exception and return an error message
             error_log('Error in SquareInventory::retrieve_inventory: ' . $e->getMessage());
             return ['error' => 'Failed to retrieve inventory from Square.'];
         }
     }
 
 
-    private function fetchSquareImageUrl($imageId)
+    private function enhanceProduct(&$product, $inventoryCounts, $item_options, $item_option_values, $imageUrls)
     {
-        $response = $this->squareApiRequest("/catalog/object/" . $imageId);
+        $productId = $product['id'] ?? null;
+        $product['inventory_count'] = $inventoryCounts[$productId] ?? 'Not Available';
 
+        if (isset($product['item_data']['variations'])) {
+            foreach ($product['item_data']['variations'] as &$variation) {
+                $variationId = $variation['id'] ?? null;
+                $variation['inventory_count'] = $inventoryCounts[$variationId] ?? 'Not Available';
 
-        if ($response['success']) {
-            // Access the nested URL
-            return $response['data']['object']['image_data']['url'] ?? null;
-        } else {
-            error_log('Error fetching Square image: ' . $response['error']);
-            return null;
+                if (isset($variation['item_variation_data']['item_option_values'])) {
+                    foreach ($variation['item_variation_data']['item_option_values'] as &$optionValue) {
+                        $optionId = $optionValue['item_option_id'];
+                        $optionValueId = $optionValue['item_option_value_id'];
+                        $optionValue['optionName'] = ($item_options[$optionId] ?? null) ?: null;
+                        $optionValue['optionValue'] = ($item_option_values[$optionId][$optionValueId] ?? null) ?: null;
+                        unset($optionValue['item_option_id'], $optionValue['item_option_value_id']);
+                    }
+                    unset($optionValue);
+                }
+            }
+            unset($variation);
+        }
+
+        if (isset($product['item_data']['image_ids'])) {
+            $product['item_data']['image_urls'] = array_map(
+                fn ($id) => $imageUrls[$id] ?? null,
+                $product['item_data']['image_ids']
+            );
+            unset($product['item_data']['image_ids']);
         }
     }
 
+
+
+
+    private function fetchSquareImageUrls(array $imageIds)
+    {
+        $chunkSize = 500; // Adjust this value if needed
+        $allImageUrls = [];
+
+        foreach (array_chunk($imageIds, $chunkSize) as $chunk) {
+            $batchRequestData = ['object_ids' => $chunk];
+            $response = $this->squareApiRequest('/catalog/batch-retrieve', 'POST', $batchRequestData);
+
+            if ($response['success'] && isset($response['data']['objects'])) {
+                foreach ($response['data']['objects'] as $object) {
+                    if (isset($object['image_data']['url'])) {
+                        $allImageUrls[$object['id']] = $object['image_data']['url'];
+                    }
+                }
+            } else {
+                error_log('Error fetching Square images for a chunk: ' . json_encode($response));
+                // Optionally handle partial failures here
+            }
+            // Free up memory
+            unset($response);
+        }
+
+        return $allImageUrls;
+    }
 
     private function fetchSquareItems()
     {
@@ -125,7 +132,6 @@ class SquareInventory extends SquareHelper
                 $cursor = $response['data']['cursor'] ?? null;
             } else {
                 error_log('Error fetching Square items: ' . $response['error']);
-                return ['error' => 'Error fetching Square itemss: ' . $response['error']];
             }
         } while ($cursor);
 
@@ -180,25 +186,28 @@ class SquareInventory extends SquareHelper
 
     private function fetchInventoryCounts($catalogObjectIds)
     {
+        $chunkSize = 500; // Max items per request
+        $inventoryCounts = [];
 
-        $postData = [
-            'catalog_object_ids' => $catalogObjectIds
-        ];
+        foreach (array_chunk($catalogObjectIds, $chunkSize) as $chunk) {
+            $postData = ['catalog_object_ids' => $chunk];
+            $response = $this->squareApiRequest('/inventory/counts/batch-retrieve', 'POST', $postData);
 
-        $response = $this->squareApiRequest('/inventory/counts/batch-retrieve', 'POST', $postData);
-
-
-        if ($response['success'] && isset($response['data']['counts'])) {
-            foreach ($response['data']['counts'] as $count) {
-                $objectId = $count['catalog_object_id'];
-                $quantity = $count['quantity'] ?? '0';
-                $inventoryCounts[$objectId] = $quantity;
+            if ($response['success'] && isset($response['data']['counts'])) {
+                foreach ($response['data']['counts'] as $count) {
+                    $objectId = $count['catalog_object_id'];
+                    $quantity = $count['quantity'] ?? '0';
+                    $inventoryCounts[$objectId] = $quantity;
+                }
+            } else {
+                // If there's an error, log it and continue with the next chunk
+                error_log('Error fetching inventory counts: ' . json_encode($response));
+                foreach ($chunk as $id) {
+                    $inventoryCounts[$id] = 'Not Available';
+                }
             }
-        } else {
-            // Handle error or set default value
-            foreach ($catalogObjectIds as $id) {
-                $inventoryCounts[$id] = 'Not Available';
-            }
+            // Free up memory
+            unset($response);
         }
 
         return $inventoryCounts;
@@ -226,5 +235,14 @@ class SquareInventory extends SquareHelper
             error_log('Error in SquareInventory::getAllSquareCategories: ' . $e->getMessage());
             return ['error' => 'Failed to retrieve categories from Square.'];
         }
+    }
+
+    private function chunkArray(array $array, $chunkSize)
+    {
+        $chunks = [];
+        foreach (array_chunk($array, $chunkSize) as $chunk) {
+            $chunks[] = $chunk;
+        }
+        return $chunks;
     }
 }
