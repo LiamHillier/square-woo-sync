@@ -57,7 +57,6 @@ class SquareInventory extends SquareHelper
         }
     }
 
-
     private function enhanceProduct(&$product, $inventoryCounts, $item_options, $item_option_values, $imageUrls)
     {
         $productId = $product['id'] ?? null;
@@ -87,9 +86,9 @@ class SquareInventory extends SquareHelper
                 fn ($id) => $imageUrls[$id] ?? null,
                 $product['item_data']['image_ids']
             );
-            unset($product['item_data']['image_ids']);
         }
     }
+
 
 
 
@@ -216,6 +215,11 @@ class SquareInventory extends SquareHelper
 
 
 
+    /**
+     * Retrieve Square categories.
+     *
+     * @return array
+     */
     public function getAllSquareCategories()
     {
         try {
@@ -223,13 +227,15 @@ class SquareInventory extends SquareHelper
             if ($response['success']) {
                 $categories = [];
                 foreach ($response['data']['objects'] as $object) {
-                    $categories[$object['id']] = $object['category_data']['name'];
+                    if ($object['type'] === 'CATEGORY') {
+                        $categories[$object['id']] = $object['category_data']['name'];
+                    }
                 }
 
                 return $categories;
             } else {
                 error_log('Error fetching Square categories: ' . $response['error']);
-                return ['error' => 'E rror fetching Square categories: ' . $response['error']];
+                return ['error' => 'Error fetching Square categories: ' . $response['error']];
             }
         } catch (\Exception $e) {
             error_log('Error in SquareInventory::getAllSquareCategories: ' . $e->getMessage());

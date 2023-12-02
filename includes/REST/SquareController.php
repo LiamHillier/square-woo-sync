@@ -68,7 +68,6 @@ class SquareController extends RESTController
         return $token;
     }
 
-
     /**
      * Retrieve WooCommerce product data with minimal memory usage.
      *
@@ -78,9 +77,10 @@ class SquareController extends RESTController
     {
         global $wpdb;
 
-        $query = "SELECT p.ID, p.post_title AS name, meta1.meta_value AS sku
+        $query = "SELECT p.ID, p.post_title AS name, meta1.meta_value AS sku, meta2.meta_value AS square_product_id
               FROM {$wpdb->prefix}posts AS p
               LEFT JOIN {$wpdb->prefix}postmeta AS meta1 ON (p.ID = meta1.post_id AND meta1.meta_key = '_sku')
+              LEFT JOIN {$wpdb->prefix}postmeta AS meta2 ON (p.ID = meta2.post_id AND meta2.meta_key = 'square_product_id')
               WHERE p.post_type IN ('product', 'product_variation')
               AND p.post_status = 'publish'
               ORDER BY p.ID";
@@ -92,52 +92,54 @@ class SquareController extends RESTController
 
 
     /**
-     * Compares Square SKU with Woocommerce SKU for matching purposes
+     * Compares Square SKU with WooCommerce SKU for matching purposes and updates the import status.
      *
+     * @param array $squareInventory
+     * @param array $woocommerceProducts
+     * @param object $square
      * @return array
      */
     private function compare_skus($squareInventory, $woocommerceProducts, $square)
     {
-        error_log('comparing');
         $categories = $square->getAllSquareCategories();
         $result = [];
-        error_log('got categories');
+        // Create a mapping of WooCommerce square_product_id to WooCommerce product IDs
+        $squareProductIdMapping = [];
+        foreach ($woocommerceProducts as $wcProduct) {
+            $wcSquareProductId = $wcProduct['square_product_id'] ?? null;
+            $wcProductId = $wcProduct['ID'] ?? null;
+
+            if ($wcSquareProductId && $wcProductId) {
+                $squareProductIdMapping[$wcSquareProductId] = $wcProductId;
+            }
+        }
+
         foreach ($squareInventory as $squareItem) {
-            $itemData = json_decode(json_encode($squareItem), true);
+            $itemData = $squareItem;
+
 
             if (isset($itemData['item_data']['category_id']) && isset($categories[$itemData['item_data']['category_id']])) {
                 $itemData['item_data']['category_name'] = $categories[$itemData['item_data']['category_id']];
             }
 
-            $skuMapping = [];
-            $parentSku = isset($itemData['item_data']['variations'][0]['item_variation_data']['sku']) ? $itemData['item_data']['variations'][0]['item_variation_data']['sku'] : null;
+            $squareProductId = $itemData['id'] ?? null;
 
-            // Create a mapping of WooCommerce product SKUs to WooCommerce product IDs
-            foreach ($woocommerceProducts as $wcProduct) {
-                $wcSku = $wcProduct['sku'] ?? null;
-                $wcProductId = $wcProduct['id'] ?? null;
-
-                if ($wcSku && $wcProductId) {
-                    $skuMapping[$wcSku] = $wcProductId;
-                }
-            }
-
-            // Check if the parent SKU is in the matched SKUs and add WooCommerce product ID
+            // Check if the Square product ID is in the matched square_product_id and add WooCommerce product ID
             $itemData['imported'] = false;
-            if ($parentSku && isset($skuMapping[$parentSku])) {
+            if ($squareProductId && isset($squareProductIdMapping[$squareProductId])) {
                 $itemData['imported'] = true;
-                $itemData['woocommerce_product_id'] = $skuMapping[$parentSku];
+                $itemData['woocommerce_product_id'] = $squareProductIdMapping[$squareProductId];
             }
 
             if (isset($itemData['item_data']['variations'])) {
                 foreach ($itemData['item_data']['variations'] as &$variation) {
-                    $variationSku = isset($variation['item_variation_data']['sku']) ? $variation['item_variation_data']['sku'] : null;
+                    $variationId = $variation['id'] ?? null;
 
-                    // Check for each variation SKU and add WooCommerce product ID
+                    // Check if the Square variation ID is in the matched square_product_id and add WooCommerce product ID
                     $variation['imported'] = false;
-                    if ($variationSku && isset($skuMapping[$variationSku])) {
+                    if ($variationId && isset($squareProductIdMapping[$variationId])) {
                         $variation['imported'] = true;
-                        $variation['woocommerce_product_id'] = $skuMapping[$variationSku];
+                        $variation['woocommerce_product_id'] = $squareProductIdMapping[$variationId];
                     }
                 }
                 unset($variation); // Break the reference with the last element
@@ -148,8 +150,6 @@ class SquareController extends RESTController
 
         return $result;
     }
-
-
 
 
 

@@ -98,8 +98,9 @@ class SquareImport extends SquareHelper
         $wc_product_data['stock'] = intval($square_product['item_data']['variations'][0]['inventory_count'] ?? '0');
         $wc_product_data['price'] = $square_product['item_data']['variations'][0]['item_variation_data']['price_money']['amount'] / 100;
 
-        // Handle Multiple Image Imports
+
         if (!empty($square_product['item_data']['image_urls']) && !empty($square_product['item_data']['image_ids'])) {
+            // Handle Multiple Image Imports
             $image_urls = $square_product['item_data']['image_urls'];
             $square_image_ids = $square_product['item_data']['image_ids'];
 
@@ -326,7 +327,7 @@ class SquareImport extends SquareHelper
                     $product->save(); // Save the product with the category
                 }
             }
-
+            error_log(json_encode($wc_product_data['images']));
             // Check if there are images to import
             if ($data_to_import['image'] && !empty($wc_product_data['images'])) {
                 $product->set_image_id('');
