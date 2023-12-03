@@ -50,7 +50,66 @@ class SquareController extends RESTController
                 'permission_callback' => [$this, 'check_permission']
             ]
         ]);
+        register_rest_route($this->namespace, '/' . $this->base . '/update', [
+            [
+                'methods' => WP_REST_Server::EDITABLE,
+                'callback' => [$this, 'receive_square_update'],
+                'permission_callback' => [$this, 'check_permission']
+            ]
+        ]);
     }
+
+    private function receive_square_update(WP_REST_Request $request)
+    {
+        $body = json_decode($request->get_body(), true);
+        // Check the event type
+        $eventType = $body['type'] ?? '';
+        switch ($eventType) {
+            case 'inventory.count.updated':
+                $this->handleInventoryUpdate($body);
+                break;
+            case 'catalog.version.updated':
+                $this->handleCatalogUpdate($body);
+                break;
+            default:
+                // Handle unknown event type
+                error_log('Received unknown event type: ' . $eventType);
+                break;
+        }
+    }
+
+    private function handleCatalogUpdate($data)
+    {
+        // Similar implementation for catalog updates
+    }
+
+    private function handleInventoryUpdate($data)
+    {
+        $catalogObjectId = $data['data']['id'] ?? '';
+
+        $square = new SquareHelper();
+
+        // Make an API request to Square to get item details
+        // Assuming you have a method like getSquareItemDetails
+        $squareItemDetails = $square->getSquareItemDetails($catalogObjectId);
+
+        error_log(json_encode($squareItemDetails));
+
+        // if ($squareItemDetails) {
+        //     // Assuming you have a method to map Square ID to WooCommerce Product ID
+        //     $wooProductId = $this->mapSquareIdToWooProductId($squareItemDetails['id']);
+
+        //     if ($wooProductId) {
+        //         // Update WooCommerce product meta
+        //         update_post_meta($wooProductId, '_square_item_id', $squareItemDetails['id']);
+        //     } else {
+        //         error_log('No WooCommerce product found for Square ID: ' . $squareItemDetails['id']);
+        //     }
+        // } else {
+        //     error_log('Failed to fetch details for Square ID: ' . $catalogObjectId);
+        // }
+    }
+
 
     private function get_token_and_validate()
     {

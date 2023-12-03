@@ -111,5 +111,23 @@ class SquareHelper
         return null;
     }
 
+    public function getSquareItemDetails($catalogObjectId)
+    {
+        // Define the endpoint to get item details
+        // Replace with the appropriate endpoint as per Square API documentation
+        $endpoint = "/v2/catalog/object/" . $catalogObjectId;
+
+        // Make the API request using the squareApiRequest method
+        $response = $this->squareApiRequest($endpoint);
+
+        // Check if the request was successful and return the item details
+        if ($response['success']) {
+            return $response['data'];
+        } else {
+            // Handle the error case
+            error_log('Failed to get Square item details: ' . $response['error']);
+            return null;
+        }
+    }
     // Other Square-related methods can be added here
 }
