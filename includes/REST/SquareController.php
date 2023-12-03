@@ -34,42 +34,37 @@ class SquareController extends RESTController
      *
      * @return void
      */
+
     public function register_routes()
     {
-        register_rest_route($this->namespace, '/' . $this->base, [
-            [
-                'methods' => WP_REST_Server::READABLE,
-                'callback' => [$this, 'get_square_inventory'],
+        $routes = [
+            ['', WP_REST_Server::READABLE, 'get_square_inventory'],
+            ['/import', WP_REST_Server::EDITABLE, 'import_to_woocommerce'],
+            ['/update', WP_REST_Server::EDITABLE, 'receive_square_update']
+        ];
+
+        foreach ($routes as $route) {
+            register_rest_route($this->namespace, '/' . $this->base . $route[0], [
+                'methods' => $route[1],
+                'callback' => [$this, $route[2]],
                 'permission_callback' => [$this, 'check_permission']
-            ]
-        ]);
-        register_rest_route($this->namespace, '/' . $this->base . '/import', [
-            [
-                'methods' => WP_REST_Server::EDITABLE,
-                'callback' => [$this, 'import_to_woocommerce'],
-                'permission_callback' => [$this, 'check_permission']
-            ]
-        ]);
-        register_rest_route($this->namespace, '/' . $this->base . '/update', [
-            [
-                'methods' => WP_REST_Server::EDITABLE,
-                'callback' => [$this, 'receive_square_update'],
-                'permission_callback' => [$this, 'check_permission']
-            ]
-        ]);
+            ]);
+        }
     }
 
-    private function receive_square_update(WP_REST_Request $request)
+    public function receive_square_update(WP_REST_Request $request)
     {
+        $this->acknowledge_receipt();
         $body = json_decode($request->get_body(), true);
+        error_log($request->get_body());
         // Check the event type
         $eventType = $body['type'] ?? '';
         switch ($eventType) {
             case 'inventory.count.updated':
-                $this->handleInventoryUpdate($body);
+                $this->handle_inventory_count_updated($body);
                 break;
             case 'catalog.version.updated':
-                $this->handleCatalogUpdate($body);
+                $this->handle_catalog_version_updated($body);
                 break;
             default:
                 // Handle unknown event type
@@ -78,37 +73,140 @@ class SquareController extends RESTController
         }
     }
 
-    private function handleCatalogUpdate($data)
+    private function acknowledge_receipt()
     {
-        // Similar implementation for catalog updates
+        status_header(200);
+        echo 'Event Received';
     }
 
-    private function handleInventoryUpdate($data)
+    private function handle_catalog_version_updated($data)
     {
-        $catalogObjectId = $data['data']['id'] ?? '';
+        try {
+            $updated_at = new \DateTime($data['data']['object']['catalog_version']['updated_at']);
+            $updated_at->modify('-1 millisecond');
+            $beginTime = $updated_at->format(\DateTime::ATOM);
 
+            $requestBody = [
+                'object_types' => ['ITEM'],
+                'include_deleted_objects' => false,
+                'include_related_objects' => false,
+                'begin_time' => $beginTime
+            ];
+
+            $square = new SquareHelper();
+            $response = $square->squareApiRequest('/catalog/search', 'POST', $requestBody);
+
+            if (isset($response) && $response['success'] === true) {
+                $squareImport = new SquareImport();
+                $squareInventory = new SquareInventory();
+                $dataToImport = ['sku' => true, 'title' => true, 'description' => true, 'stock' => false, 'price' => true, 'categories' => true, 'image' => true];
+                $categories = $squareInventory->getAllSquareCategories();
+
+                foreach ($response['data']['objects'] as &$product) {
+
+                    $this->processProductVariations($product, $square);
+
+                    if (!empty($product['item_data']['image_ids'])) {
+                        // Process image URLs one by one instead of pre-fetching all
+                        $product['item_data']['image_urls'] = [];
+                        foreach ($product['item_data']['image_ids'] as $id) {
+                            $product['item_data']['image_urls'][] = $squareInventory->fetchImageURL($id);
+                        }
+                    }
+
+                    if (isset($product['item_data']['category_id']) && isset($categories[$product['item_data']['category_id']])) {
+                        $product['item_data']['category_name'] = $categories[$product['item_data']['category_id']];
+                    }
+                }
+                unset($product);
+
+                $importResults = $squareImport->import_products($response['data']['objects'], $dataToImport, true);
+                error_log(json_encode($importResults));
+            } else {
+                error_log("Square API request failed: " . ($response['error'] ?? 'Unknown error'));
+            }
+        } catch (\Exception $e) {
+            error_log("Error in updating product via webhook: " . $e->getMessage());
+        }
+    }
+
+
+
+    private function processProductVariations(&$product, $square)
+    {
+        foreach ($product['item_data']['variations'] as &$variation) {
+            if (isset($variation['item_variation_data']['item_option_values'])) {
+                $newOptionValues = [];
+                foreach ($variation['item_variation_data']['item_option_values'] as $option) {
+                    $optionName = $this->fetchOptionName($square, $option['item_option_id']);
+                    $optionValue = $this->fetchOptionValue($square, $option['item_option_value_id']);
+
+                    $newOptionValues[] = [
+                        "optionName" => $optionName,
+                        "optionValue" => $optionValue
+                    ];
+                }
+                $variation['item_variation_data']['item_option_values'] = $newOptionValues;
+            }
+        }
+        unset($variation);
+    }
+
+    private function fetchOptionName($square, $optionId)
+    {
+        $optionNameRequest = $square->squareApiRequest('/catalog/object/' . $optionId . '?include_related_objects=false');
+        return $optionNameRequest['success'] === true ? $optionNameRequest['data']['object']['item_option_data']['name'] : null;
+    }
+
+    private function fetchOptionValue($square, $optionValueId)
+    {
+        $optionValueRequest = $square->squareApiRequest('/catalog/object/' . $optionValueId . '?include_related_objects=false');
+        return $optionValueRequest['success'] === true ? $optionValueRequest['data']['object']['item_option_value_data']['name'] : null;
+    }
+
+
+    private function handle_inventory_count_updated($data)
+    {
+        $catalogObjectId = $data['data']['object']['inventory_counts'][0]['catalog_object_id'] ?? '';
         $square = new SquareHelper();
-
-        // Make an API request to Square to get item details
-        // Assuming you have a method like getSquareItemDetails
         $squareItemDetails = $square->getSquareItemDetails($catalogObjectId);
 
-        error_log(json_encode($squareItemDetails));
+        if ($squareItemDetails) {
+            $wooProducts = $this->get_woocommerce_products();
 
-        // if ($squareItemDetails) {
-        //     // Assuming you have a method to map Square ID to WooCommerce Product ID
-        //     $wooProductId = $this->mapSquareIdToWooProductId($squareItemDetails['id']);
+            foreach ($wooProducts as $wcProduct) {
+                $wcSquareProductId = $wcProduct['square_product_id'] ?? null;
+                $wcProductId = $wcProduct['ID'] ?? null;
+                if ($wcProductId) {
+                    $product = wc_get_product($wcProductId);
+                    $id = $squareItemDetails['object']['id'];
+                    if ($product->is_type('simple')) {
+                        $id = $squareItemDetails['object']['item_variation_data']['item_id'];
+                    }
+                    if ($wcSquareProductId && $wcSquareProductId === $id) {
+                        error_log($wcProductId);
+                        if (is_a($product, 'WC_Product')) {
+                            $newQuantity = $data['data']['object']['inventory_counts'][0]['quantity'];
+                            $product->set_stock_quantity($newQuantity);
+                            $product->save();
+                        } else {
+                            error_log('No square product match found for ID: ' . $wcProductId);
+                        }
 
-        //     if ($wooProductId) {
-        //         // Update WooCommerce product meta
-        //         update_post_meta($wooProductId, '_square_item_id', $squareItemDetails['id']);
-        //     } else {
-        //         error_log('No WooCommerce product found for Square ID: ' . $squareItemDetails['id']);
-        //     }
-        // } else {
-        //     error_log('Failed to fetch details for Square ID: ' . $catalogObjectId);
-        // }
+                        break; // Exit the loop once a match is found
+                    }
+                } else {
+                    error_log('No WooCommerce product found for ID: ' . $wcProductId);
+                }
+            }
+
+            // Free memory by unsetting unnecessary variables
+            unset($wooProducts);
+        } else {
+            error_log('Failed to fetch details for Square ID: ' . $catalogObjectId);
+        }
     }
+
 
 
     private function get_token_and_validate()
@@ -144,11 +242,8 @@ class SquareController extends RESTController
               AND p.post_status = 'publish'
               ORDER BY p.ID";
 
-        $results = $wpdb->get_results($query, ARRAY_A);
-
-        return $results;
+        return $wpdb->get_results($query, ARRAY_A);
     }
-
 
     /**
      * Compares Square SKU with WooCommerce SKU for matching purposes and updates the import status.

@@ -21,14 +21,14 @@ class SquareImport extends SquareHelper
      * @param array $square_products The products to import.
      * @return array The results of the import process.
      */
-    public function import_products($square_products, $data_to_import)
+    public function import_products($square_products, $data_to_import, $update_only = false)
     {
         $results = [];
 
         foreach ($square_products as $square_product) {
             try {
                 $wc_product_data = $this->map_square_product_to_woocommerce($square_product);
-                $product_id = $this->create_or_update_woocommerce_product($wc_product_data, $data_to_import);
+                $product_id = $this->create_or_update_woocommerce_product($wc_product_data, $data_to_import, $update_only);
 
                 if ($product_id !== false) {
                     $results[] = ['status' => 'success', 'product_id' => $product_id, 'square_id' => $square_product['id'], 'message' => 'Product imported successfully'];
@@ -64,6 +64,7 @@ class SquareImport extends SquareHelper
         $wc_product_data['description'] = $square_product['item_data']['description_plaintext'] ?? '';
         $wc_product_data['type'] = count($square_product['item_data']['variations']) > 1 ? 'variable' : 'simple';
         $wc_product_data['sku'] = $square_product['item_data']['variations'][0]['item_variation_data']['sku'];
+
         $wc_product_data['square_product_id'] = $square_product['id'];
 
         $category_name = isset($square_product['item_data']['category_name']) ? sanitize_text_field($square_product['item_data']['category_name']) : '';
@@ -182,7 +183,7 @@ class SquareImport extends SquareHelper
      * @param array $wc_product_data The WooCommerce product data.
      * @return int|bool The ID of the product if successful, or false on failure.
      */
-    private function create_or_update_woocommerce_product($wc_product_data, $data_to_import)
+    private function create_or_update_woocommerce_product($wc_product_data, $data_to_import, $update_only)
     {
 
         try {
@@ -197,6 +198,11 @@ class SquareImport extends SquareHelper
             );
 
             $product_id = $wpdb->get_var($query);
+
+            // Check if the product exists. If $update_only is true and no product is found, return false
+            if ($update_only && !$product_id) {
+                return false;
+            }
 
             $product = $product_id ? wc_get_product($product_id) : ($wc_product_data['type'] === 'simple' ? new \WC_Product_Simple() : new \WC_Product_Variable());
 

@@ -93,7 +93,7 @@ class SquareInventory extends SquareHelper
 
 
 
-    private function fetchSquareImageUrls(array $imageIds)
+    public function fetchSquareImageUrls(array $imageIds)
     {
         $chunkSize = 500; // Adjust this value if needed
         $allImageUrls = [];
@@ -117,6 +117,23 @@ class SquareInventory extends SquareHelper
         }
 
         return $allImageUrls;
+    }
+
+    public function fetchImageURL($imageId)
+    {
+        $imageUrl = '';
+        $response = $this->squareApiRequest('/catalog/object/' . $imageId);
+        if ($response['success'] && isset($response['data']['object'])) {
+            if (isset($response['data']['object']['image_data']['url'])) {
+                $imageUrl = $response['data']['object']['image_data']['url'];
+            }
+        } else {
+            error_log('Error fetching Square image: ' . json_encode($response));
+            // Optionally handle partial failures here
+        }
+        // Free up memory
+        unset($response);
+        return $imageUrl;
     }
 
     private function fetchSquareItems()

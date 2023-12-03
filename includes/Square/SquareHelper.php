@@ -115,7 +115,7 @@ class SquareHelper
     {
         // Define the endpoint to get item details
         // Replace with the appropriate endpoint as per Square API documentation
-        $endpoint = "/v2/catalog/object/" . $catalogObjectId;
+        $endpoint = "/catalog/object/" . $catalogObjectId;
 
         // Make the API request using the squareApiRequest method
         $response = $this->squareApiRequest($endpoint);
