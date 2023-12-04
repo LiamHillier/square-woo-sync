@@ -5,6 +5,13 @@ import { classNames } from "../utils/classHelper";
 const DialogWrapper = ({ children, open, onClose, className }) => {
   const initialFocusRef = useRef(null);
 
+  const handleDialogKeyDown = (e) => {
+    if (e.key === "Escape") {
+      // Prevent the default behavior of the Escape key
+      e.preventDefault();
+    }
+  };
+
   return (
     <>
       <Dialog
@@ -13,6 +20,7 @@ const DialogWrapper = ({ children, open, onClose, className }) => {
         onClose={onClose} // Simply pass the function directly
         className="relative z-[99999]"
         initialFocus={initialFocusRef}
+        onKeyDown={handleDialogKeyDown} // Add this event handler
       >
         {/* The backdrop, rendered as a fixed sibling to the panel container */}
         <div className="fixed inset-0 bg-black/70" aria-hidden="true" />

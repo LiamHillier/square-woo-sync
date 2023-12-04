@@ -140,11 +140,12 @@ class SquareInventory extends SquareHelper
     {
         $cursor = null;
         $items = [];
-
         do {
             $response = $this->squareApiRequest('/catalog/list?types=ITEM&cursor=' . $cursor);
             if ($response['success']) {
-                $items = array_merge($items, $response['data']['objects']);
+                foreach ($response['data']['objects'] as $item) {
+                    $items[] = $this->filterItemData($item);
+                }
                 $cursor = $response['data']['cursor'] ?? null;
             } else {
                 error_log('Error fetching Square items: ' . $response['error']);
@@ -153,6 +154,36 @@ class SquareInventory extends SquareHelper
 
         return $items;
     }
+
+    private function filterItemData($item)
+    {
+        $filteredItem = [
+            'id' => $item['id'] ?? null,
+            'item_data' => [
+                'category_id' => $item['item_data']['category_id'] ?? null,
+                'name' => $item['item_data']['name'] ?? null,
+                'description' => $item['item_data']['description'] ?? $item['item_data']['description_plaintext'] ?? null,
+                'image_ids' => $item['item_data']['image_ids'] ?? [],
+                'variations' => []
+            ]
+        ];
+
+        foreach ($item['item_data']['variations'] as $variation) {
+            $filteredItem['item_data']['variations'][] = [
+                'id' => $variation['id'] ?? null,
+                'item_variation_data' => [
+                    'item_id' => $variation['item_variation_data']['item_id'] ?? null,
+                    'name' => $variation['item_variation_data']['name'] ?? null,
+                    'sku' => $variation['item_variation_data']['sku'] ?? null,
+                    'price_money' => $variation['item_variation_data']['price_money'] ?? null,
+                    'item_option_values' => $variation['item_variation_data']['item_option_values'] ?? null
+                ]
+            ];
+        }
+
+        return $filteredItem;
+    }
+
 
 
     private function fetchSquareItemOptions()

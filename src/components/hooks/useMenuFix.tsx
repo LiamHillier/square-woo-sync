@@ -7,7 +7,7 @@ import { useLocation } from 'react-router-dom';
 /**
  * Internal dependencies
  */
-import { menuFix } from '../utils/menuFix';
+import { menuFix } from '../../utils/menuFix';
 
 export default function useMenuFix() {
 	const location = useLocation();

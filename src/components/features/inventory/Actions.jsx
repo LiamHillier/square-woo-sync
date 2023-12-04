@@ -11,6 +11,8 @@ import {
 import { Dialog } from "@headlessui/react";
 
 import { classNames } from "../../../utils/classHelper";
+import useMenuFix from "../../hooks/useMenuFix";
+import { Link } from "react-router-dom";
 
 const actions = [
   {
@@ -18,12 +20,14 @@ const actions = [
     icon: ClockIcon,
     iconForeground: "text-teal-700",
     iconBackground: "bg-teal-50",
+    link: "/inventory",
   },
   {
     title: "Sync Woo to Square",
     icon: CheckBadgeIcon,
     iconForeground: "text-purple-700",
     iconBackground: "bg-purple-50",
+    link: "/",
   },
 
   {
@@ -31,15 +35,18 @@ const actions = [
     icon: AcademicCapIcon,
     iconForeground: "text-sky-700",
     iconBackground: "bg-sky-50",
+    link: "/documentation",
   },
 ];
 
 export default function Actions() {
+  useMenuFix();
   return (
-    <div className="divide-y divide-gray-200 overflow-hidden rounded-lg bg-gray-200 shadow-lg sm:grid sm:grid-cols-3 sm:gap-px sm:divide-y-0 relative">
+    <div className="divide-y divide-gray-200 overflow-hidden rounded-lg bg-gray-200 shadow sm:grid sm:grid-cols-3 sm:gap-px sm:divide-y-0 relative">
       {actions.map((action, actionIdx) => (
-        <div
+        <Link
           key={action.title}
+          to={`${action.link}`}
           className={classNames(
             actionIdx === 0 ? "rounded-tl-lg  sm:rounded-tr-none" : "",
             actionIdx === actions.length - 1 ? "sm:rounded-bl-lg" : "",
@@ -79,7 +86,7 @@ export default function Actions() {
               <path d="M20 4h1a1 1 0 00-1-1v1zm-1 12a1 1 0 102 0h-2zM8 3a1 1 0 000 2V3zM3.293 19.293a1 1 0 101.414 1.414l-1.414-1.414zM19 4v12h2V4h-2zm1-1H8v2h12V3zm-.707.293l-16 16 1.414 1.414 16-16-1.414-1.414z" />
             </svg>
           </span>
-        </div>
+        </Link>
       ))}
     </div>
   );

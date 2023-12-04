@@ -47,7 +47,6 @@ export default function Inventory() {
 
   return (
     <>
-      <Actions />
       <div className="bg-white rounded-xl shadow-lg overflow-hidden mt-10">
         {inventory.length < 1 && !loading && (
           <InvEmptyState {...{ getInventory }} />

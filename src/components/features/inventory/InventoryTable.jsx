@@ -1,5 +1,6 @@
 import { useMemo, useState, useRef, useEffect } from "@wordpress/element";
 import { toast } from "react-toastify";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   getSortedRowModel,
   useReactTable,
@@ -30,6 +31,26 @@ import { filterRows } from "../../../utils/filterRows";
 import DialogWrapper from "../../Dialog";
 import { range } from "lodash";
 import { classNames } from "../../../utils/classHelper";
+import { useNavigationBlocker } from "../../NavigationContext";
+
+function IndeterminateCheckbox({ indeterminate, className = "", ...rest }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (typeof indeterminate === "boolean") {
+      ref.current.indeterminate = !rest.checked && indeterminate;
+    }
+  }, [ref, indeterminate]);
+
+  return (
+    <input
+      type="checkbox"
+      ref={ref}
+      className={className + " cursor-pointer"}
+      {...rest}
+    />
+  );
+}
 
 const InventoryTable = ({ getInventory }) => {
   const [loadingProductId, setLoadingProductId] = useState(null);
@@ -43,6 +64,7 @@ const InventoryTable = ({ getInventory }) => {
   const [sorting, setSorting] = useState([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [productsToImport, setProductsToImport] = useState([]);
+  const [rowSelection, setRowSelection] = useState({});
   const [steps, setSteps] = useState([
     { name: "Step 1", href: "#", status: "current" },
     { name: "Step 2", href: "#", status: "upcoming" },
@@ -419,6 +441,36 @@ const InventoryTable = ({ getInventory }) => {
         );
       },
     },
+    {
+      id: "select",
+      header: ({ table }) => (
+        <div className="flex justify-center w-full pl-2">
+          <IndeterminateCheckbox
+            {...{
+              checked: table.getIsAllRowsSelected(),
+              indeterminate: table.getIsSomeRowsSelected(),
+              onChange: table.getToggleAllRowsSelectedHandler(),
+            }}
+          />
+        </div>
+      ),
+      cell: ({ row }) => {
+        if (!row.parentId) {
+          return (
+            <div className="px-1">
+              <IndeterminateCheckbox
+                {...{
+                  checked: row.getIsSelected(),
+                  disabled: !row.getCanSelect(),
+                  indeterminate: row.getIsSomeSelected(),
+                  onChange: row.getToggleSelectedHandler(),
+                }}
+              />
+            </div>
+          );
+        }
+      },
+    },
   ];
 
   const table = useReactTable({
@@ -429,11 +481,14 @@ const InventoryTable = ({ getInventory }) => {
       sorting,
       columnVisibility,
       globalFilter,
+      rowSelection,
     },
     filterFns: {
       custom: filterRows,
     },
     onExpandedChange: setExpanded,
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
     globalFilterFn: "custom",
     getSubRows: (row) => row.subRows,
     getCoreRowModel: getCoreRowModel(),
@@ -458,11 +513,6 @@ const InventoryTable = ({ getInventory }) => {
     }
   }, [progress]);
 
-  const handleDialogClose = () => {
-    console.log("test");
-    setIsDialogOpen(false);
-  };
-
   const handleRangeChange = (event) => {
     setRangeValue(Number(event.target.value));
   };
@@ -480,6 +530,49 @@ const InventoryTable = ({ getInventory }) => {
       return prev; // Return current step if no change is possible
     });
   };
+
+  const getSelectedRowData = () => {
+    // Get the IDs of selected rows
+    const selectedRowIds = Object.keys(rowSelection).filter(
+      (rowId) => rowSelection[rowId]
+    );
+
+    // Filter the data to get the selected rows' data
+    const selectedRowsData = reformattedData.filter((row) =>
+      selectedRowIds.includes(row.id)
+    );
+
+    return selectedRowsData;
+  };
+
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      if (isImporting) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    }
+
+    if (isImporting) {
+      window.addEventListener("beforeunload", handleBeforeUnload);
+    }
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isImporting]);
+
+  const navigate = useNavigate();
+  const { blockNavigation, setBlockNavigation } = useNavigationBlocker();
+
+  // When the import starts
+  useEffect(() => {
+    if (isImporting) {
+      setBlockNavigation(true);
+    } else {
+      setBlockNavigation(false);
+    }
+  }, [isImporting, setBlockNavigation]);
 
   return (
     <div>
@@ -861,7 +954,6 @@ const InventoryTable = ({ getInventory }) => {
           )}
         </div>
       </DialogWrapper>
-
       <div className="px-4 py-5 sm:px-6">
         <div className="grid grid-cols-3 gap-2 mb-4 items-center">
           <div className="flex flex-wrap items-center justify-start sm:flex-nowrap">
@@ -911,7 +1003,12 @@ const InventoryTable = ({ getInventory }) => {
             <button
               type="button"
               onClick={() => {
-                setProductsToImport(reformattedData);
+                const selectedData = getSelectedRowData();
+                if (selectedData.length > 0) {
+                  setProductsToImport(selectedData);
+                } else {
+                  setProductsToImport(reformattedData);
+                }
                 setIsDialogOpen(true);
               }}
               className="relative inline-flex items-center rounded-md bg-indigo-500 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-400"
@@ -920,7 +1017,13 @@ const InventoryTable = ({ getInventory }) => {
                 className="-ml-0.5 mr-1.5 h-4 w-4 text-white"
                 aria-hidden="true"
               />
-              <span>Import All</span>
+              <span>
+                {Object.keys(rowSelection).length < 1
+                  ? "Import all"
+                  : "Import " +
+                    Object.keys(rowSelection).length +
+                    " selected products"}
+              </span>
             </button>
           </div>
         </div>

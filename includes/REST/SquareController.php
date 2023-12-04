@@ -235,12 +235,14 @@ class SquareController extends RESTController
         global $wpdb;
 
         $query = "SELECT p.ID, p.post_title AS name, meta1.meta_value AS sku, meta2.meta_value AS square_product_id
-              FROM {$wpdb->prefix}posts AS p
-              LEFT JOIN {$wpdb->prefix}postmeta AS meta1 ON (p.ID = meta1.post_id AND meta1.meta_key = '_sku')
-              LEFT JOIN {$wpdb->prefix}postmeta AS meta2 ON (p.ID = meta2.post_id AND meta2.meta_key = 'square_product_id')
-              WHERE p.post_type IN ('product', 'product_variation')
-              AND p.post_status = 'publish'
-              ORDER BY p.ID";
+        FROM {$wpdb->prefix}posts AS p
+        LEFT JOIN {$wpdb->prefix}postmeta AS meta1 ON (p.ID = meta1.post_id AND meta1.meta_key = '_sku')
+        LEFT JOIN {$wpdb->prefix}postmeta AS meta2 ON (p.ID = meta2.post_id AND meta2.meta_key = 'square_product_id')
+        LEFT JOIN {$wpdb->prefix}posts AS parent ON (p.post_parent = parent.ID)
+        WHERE p.post_type IN ('product', 'product_variation')
+        AND p.post_status = 'publish'
+        AND (p.post_parent = 0 OR (p.post_parent != 0 AND parent.post_status = 'publish'))
+        ORDER BY p.ID;";
 
         return $wpdb->get_results($query, ARRAY_A);
     }
@@ -255,6 +257,7 @@ class SquareController extends RESTController
      */
     private function compare_skus($squareInventory, $woocommerceProducts, $square)
     {
+
         $categories = $square->getAllSquareCategories();
         $result = [];
         // Create a mapping of WooCommerce square_product_id to WooCommerce product IDs
@@ -292,6 +295,7 @@ class SquareController extends RESTController
                     // Check if the Square variation ID is in the matched square_product_id and add WooCommerce product ID
                     $variation['imported'] = false;
                     if ($variationId && isset($squareProductIdMapping[$variationId])) {
+
                         $variation['imported'] = true;
                         $variation['woocommerce_product_id'] = $squareProductIdMapping[$variationId];
                     }
@@ -329,6 +333,7 @@ class SquareController extends RESTController
                 // Additional logic to process or format the inventory data
                 //     -- Get images from square
                 // Retrieve WooCommerce products
+                unset($woocommerceProducts);
                 $woocommerceProducts = $this->get_woocommerce_products();
                 $matches = $this->compare_skus($inventory, $woocommerceProducts, $squareInv);
                 return rest_ensure_response($matches);

@@ -55,13 +55,13 @@ class SquareImport extends SquareHelper
      */
     private function map_square_product_to_woocommerce($square_product)
     {
-
+        error_log(json_encode($square_product));
 
         $wc_product_data = [];
 
         // Map basic product details from Square to WooCommerce
         $wc_product_data['name'] = $square_product['item_data']['name'];
-        $wc_product_data['description'] = $square_product['item_data']['description_plaintext'] ?? '';
+        $wc_product_data['description'] = $square_product['item_data']['description'] ?? '';
         $wc_product_data['type'] = count($square_product['item_data']['variations']) > 1 ? 'variable' : 'simple';
         $wc_product_data['sku'] = $square_product['item_data']['variations'][0]['item_variation_data']['sku'];
 
@@ -256,6 +256,32 @@ class SquareImport extends SquareHelper
                 $product->set_attributes($attributes);
 
                 $product->save(); // Save to get ID for variations
+
+                // Direct SQL to get variation IDs and SKUs
+                $sql = "SELECT post_id, meta_value as sku FROM {$wpdb->postmeta} 
+                        WHERE post_id IN (
+                            SELECT ID FROM {$wpdb->posts} 
+                            WHERE post_parent = %d AND post_type = 'product_variation'
+                        ) AND meta_key = '_sku'";
+
+                $current_variations = $wpdb->get_results($wpdb->prepare($sql, $product_id), ARRAY_A);
+
+                // Extract SKUs and their corresponding post IDs
+                $current_skus = array_column($current_variations, 'sku', 'post_id');
+
+                // Unset the original variations array as it's no longer needed
+                unset($current_variations);
+
+                $imported_skus = array_column($wc_product_data['variations'], 'sku');
+
+                foreach ($current_skus as $variation_id => $sku) {
+                    if (!in_array($sku, $imported_skus)) {
+                        wp_delete_post($variation_id, true);
+                    }
+                }
+
+                // Unset variables that are no longer needed
+                unset($current_skus, $imported_skus);
 
                 foreach ($wc_product_data['variations'] as $variation_data) {
                     $variation_id = wc_get_product_id_by_sku($variation_data['sku']);
