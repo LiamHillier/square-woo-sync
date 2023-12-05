@@ -18,6 +18,8 @@ import { Link } from "react-router-dom";
 import AccessToken from "../../components/features/settings/general/AccessToken";
 import Webhook from "../../components/features/settings/general/Webhook";
 import SKUSuffix from "../../components/features/settings/general/SKUSuffix";
+import SquareWoo from "../../components/features/settings/general/SquareWoo";
+import WooSquare from "../../components/features/settings/general/WooSquare";
 
 const navigation = [
   { name: "Home", href: "#" },
@@ -40,15 +42,38 @@ const secondaryNavigation = [
 ];
 
 export default function Settings() {
-  const [settings, setSettings] = useState({ woo_suffix: "sws" });
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settings, setSettings] = useState({
+    squareAuto: {
+      isActive: false,
+      stock: true,
+      title: true,
+      description: true,
+      images: true,
+      price: true,
+      category: true,
+    },
+    wooAuto: {
+      isActive: false,
+      stock: false,
+      title: false,
+      description: false,
+      images: false,
+      category: false,
+      price: false,
+    },
+  });
 
   useEffect(() => {
     const getSettings = async () => {
       apiFetch({ path: "/sws/v1/settings", method: "GET" })
         .then((res) => {
           setSettings(res);
+          setSettingsLoading(false);
         })
         .catch((err) => {
+          console.log(err);
+          setSettingsLoading(false);
           toast({
             render: "Failed to update settings: " + err.message,
             type: "error",
@@ -62,8 +87,7 @@ export default function Settings() {
   }, []);
 
   const updateSettings = async (key, val) => {
-    console.log(key, val);
-    const id = toast.loading(`Updating setting: ${key} to ${val}`);
+    const id = toast.loading(`Updating setting: ${key}`);
     try {
       const result = await apiFetch({
         path: "/sws/v1/settings", // Updated path
@@ -79,8 +103,8 @@ export default function Settings() {
           hideProgressBar: false,
           closeOnClick: true,
         });
+        setSettings({ ...settings, ...result });
       }
-      console.log(result);
     } catch (err) {
       toast.update(id, {
         render: "Failed to update settings: " + err.message,
@@ -128,220 +152,25 @@ export default function Settings() {
             </ul>
           </nav>
         </aside>
-
         <main className="px-4 sm:px-6 lg:flex-auto lg:px-0">
-          <AccessToken />
-          <Webhook />
-          <div className="px-4 pt-5 sm:px-6"></div>
-          <div className="px-4 pb-5 sm:px-6">
-            <h3 className="text-base font-semibold leading-6 text-gray-900">
-              Automatic Syncing
-            </h3>
-            <div className="mt-2 max-w-xl text-sm text-gray-500 mb-4">
-              <p>
-                Enable or disable automatic inventory syncing between
-                WooCommerce and Square effortlessly with our Inventory Sync
-                Toggle. Streamline your product management with ease.
-                <br></br>
-                <a href="#" className="underline text-indigo-500">
-                  How to setup and control automatic syncing between Square and
-                  Woocommerce
-                </a>
-              </p>
-            </div>
-            <div className="mb-6">
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  value=""
-                  className="sr-only peer"
-                  disabled
-                />
-                <div className="w-11 h-6 bg-gray-200 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                <span className="ms-3 text-sm font-medium text-gray-400 dark:text-gray-500">
-                  Square to woo (Webhook must be setup)
-                </span>
-              </label>
-              <ul class="items-center w-full text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg sm:flex my-3">
-                <li class="w-full border-b border-gray-200 sm:border-b-0 sm:border-r">
-                  <div class="flex items-center ps-3">
-                    <input
-                      id="vue-checkbox-list"
-                      type="checkbox"
-                      value=""
-                      class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
-                    />
-                    <label
-                      for="vue-checkbox-list"
-                      class="w-full py-3 ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                      Stock
-                    </label>
-                  </div>
-                </li>
-                <li class="w-full border-b border-gray-200 sm:border-b-0 sm:border-r ">
-                  <div class="flex items-center ps-3">
-                    <input
-                      id="react-checkbox-list"
-                      type="checkbox"
-                      value=""
-                      class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
-                    />
-                    <label
-                      for="react-checkbox-list"
-                      class="w-full py-3 ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                      Title
-                    </label>
-                  </div>
-                </li>
-                <li class="w-full border-b border-gray-200 sm:border-b-0 sm:border-r ">
-                  <div class="flex items-center ps-3">
-                    <input
-                      id="angular-checkbox-list"
-                      type="checkbox"
-                      value=""
-                      class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
-                    />
-                    <label
-                      for="angular-checkbox-list"
-                      class="w-full py-3 ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                      Description
-                    </label>
-                  </div>
-                </li>
-                <li class="w-full ">
-                  <div class="flex items-center ps-3">
-                    <input
-                      id="laravel-checkbox-list"
-                      type="checkbox"
-                      value=""
-                      class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
-                    />
-                    <label
-                      for="laravel-checkbox-list"
-                      class="w-full py-3 ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                      Images
-                    </label>
-                  </div>
-                </li>
-                <li class="w-full ">
-                  <div class="flex items-center ps-3">
-                    <input
-                      id="laravel-checkbox-list"
-                      type="checkbox"
-                      value=""
-                      class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
-                    />
-                    <label
-                      for="laravel-checkbox-list"
-                      class="w-full py-3 ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                      Category
-                    </label>
-                  </div>
-                </li>
-              </ul>
-            </div>
-            <div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  value=""
-                  className="sr-only peer"
-                  checked
-                />
-                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                <span className="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">
-                  Woo to Square
-                </span>
-              </label>
-              <ul class="items-center w-full text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-lg sm:flex my-3">
-                <li class="w-full border-b border-gray-200 sm:border-b-0 sm:border-r">
-                  <div class="flex items-center ps-3">
-                    <input
-                      id="vue-checkbox-list"
-                      type="checkbox"
-                      value=""
-                      class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
-                    />
-                    <label
-                      for="vue-checkbox-list"
-                      class="w-full py-3 ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                      Stock
-                    </label>
-                  </div>
-                </li>
-                <li class="w-full border-b border-gray-200 sm:border-b-0 sm:border-r ">
-                  <div class="flex items-center ps-3">
-                    <input
-                      id="react-checkbox-list"
-                      type="checkbox"
-                      value=""
-                      class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
-                    />
-                    <label
-                      for="react-checkbox-list"
-                      class="w-full py-3 ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                      Title
-                    </label>
-                  </div>
-                </li>
-                <li class="w-full border-b border-gray-200 sm:border-b-0 sm:border-r ">
-                  <div class="flex items-center ps-3">
-                    <input
-                      id="angular-checkbox-list"
-                      type="checkbox"
-                      value=""
-                      class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
-                    />
-                    <label
-                      for="angular-checkbox-list"
-                      class="w-full py-3 ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                      Description
-                    </label>
-                  </div>
-                </li>
-                <li class="w-full ">
-                  <div class="flex items-center ps-3">
-                    <input
-                      id="laravel-checkbox-list"
-                      type="checkbox"
-                      value=""
-                      class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
-                    />
-                    <label
-                      for="laravel-checkbox-list"
-                      class="w-full py-3 ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                      Images
-                    </label>
-                  </div>
-                </li>
-                <li class="w-full ">
-                  <div class="flex items-center ps-3">
-                    <input
-                      id="laravel-checkbox-list"
-                      type="checkbox"
-                      value=""
-                      class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-700 dark:focus:ring-offset-gray-700 focus:ring-2 dark:bg-gray-600 dark:border-gray-500"
-                    />
-                    <label
-                      for="laravel-checkbox-list"
-                      class="w-full py-3 ms-2 text-sm font-medium text-gray-900 dark:text-gray-300"
-                    >
-                      Category
-                    </label>
-                  </div>
-                </li>
-              </ul>
-            </div>
-          </div>
+          {settingsLoading ? (
+            <div>Loading...</div>
+          ) : (
+            <>
+              <AccessToken />
+              <Webhook />
+              <SquareWoo
+                settings={settings}
+                updateSettings={updateSettings}
+                settingsLoading={settingsLoading}
+              />
+              <WooSquare
+                settings={settings}
+                updateSettings={updateSettings}
+                settingsLoading={settingsLoading}
+              />
+            </>
+          )}
         </main>
       </div>
     </>

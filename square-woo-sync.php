@@ -256,6 +256,31 @@ final class SWS
 
         //  // Localize our plugin
         //  add_action( 'init', [ $this, 'localization_setup' ] );
+        $current_settings = get_option('sws_settings', []);
+
+        if ($current_settings === false) {
+            update_option('sws_settings', array(
+                "squareAuto" => array(
+                    "isActive" => false,
+                    "stock" => true,
+                    "title" => true,
+                    "description" => true,
+                    "images" => true,
+                    "category" => true,
+                    "price" => true,
+                ),
+                "wooAuto" =>  array(
+                    "isActive" => false,
+                    "stock" => false,
+                    "title" => false,
+                    "description" => false,
+                    "images" => false,
+                    "category" => false,
+                    "price" => false,
+                ),
+            ));
+        }
+
 
         // Add the plugin page links
         add_filter('plugin_action_links_' . plugin_basename(__FILE__), [$this, 'plugin_action_links']);

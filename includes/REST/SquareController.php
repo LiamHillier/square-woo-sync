@@ -57,14 +57,21 @@ class SquareController extends RESTController
         $this->acknowledge_receipt();
         $body = json_decode($request->get_body(), true);
         error_log($request->get_body());
+        $settings = get_option('sws_settings', []);
+        $canImport = isset($settings['squareAuto']['isActive']) ? $settings['squareAuto']['isActive'] : false;
+        if (!$canImport) return;
+
+        $canStockUpdate = isset($settings['squareAuto']['stock']) ? $settings['squareAuto']['stock'] : false;
         // Check the event type
         $eventType = $body['type'] ?? '';
         switch ($eventType) {
             case 'inventory.count.updated':
-                $this->handle_inventory_count_updated($body);
+                if ($canStockUpdate) {
+                    $this->handle_inventory_count_updated($body);
+                }
                 break;
             case 'catalog.version.updated':
-                $this->handle_catalog_version_updated($body);
+                $this->handle_catalog_version_updated($body, $settings['squareAuto']);
                 break;
             default:
                 // Handle unknown event type
@@ -79,7 +86,7 @@ class SquareController extends RESTController
         echo 'Event Received';
     }
 
-    private function handle_catalog_version_updated($data)
+    private function handle_catalog_version_updated($data, $canImportData)
     {
         try {
             $updated_at = new \DateTime($data['data']['object']['catalog_version']['updated_at']);
@@ -99,9 +106,16 @@ class SquareController extends RESTController
             if (isset($response) && $response['success'] === true) {
                 $squareImport = new SquareImport();
                 $squareInventory = new SquareInventory();
-                $dataToImport = ['sku' => true, 'title' => true, 'description' => true, 'stock' => false, 'price' => true, 'categories' => true, 'image' => true];
+                $dataToImport = array(
+                    'sku' => true,
+                    'title' => $canImportData['title'],
+                    'description' => $canImportData['description'],
+                    'stock' => false, // stock is handle by handle_inventory_count_updated
+                    'price' => $canImportData['price'],
+                    'categories' => $canImportData['category'],
+                    'image' => $canImportData['images']
+                );
                 $categories = $squareInventory->getAllSquareCategories();
-
                 foreach ($response['data']['objects'] as &$product) {
 
                     $this->processProductVariations($product, $square);
