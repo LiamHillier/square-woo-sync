@@ -1,4 +1,4 @@
-import Actions from "../components/features/inventory/Actions";
+import Actions from "../components/Actions";
 import Stats from "../components/stats";
 const people = [
   {

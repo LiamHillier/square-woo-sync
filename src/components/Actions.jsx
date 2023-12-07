@@ -10,8 +10,8 @@ import {
 } from "@heroicons/react/24/outline";
 import { Dialog } from "@headlessui/react";
 
-import { classNames } from "../../../utils/classHelper";
-import useMenuFix from "../../hooks/useMenuFix";
+import { classNames } from "../utils/classHelper";
+import useMenuFix from "./hooks/useMenuFix";
 import { Link } from "react-router-dom";
 
 const actions = [

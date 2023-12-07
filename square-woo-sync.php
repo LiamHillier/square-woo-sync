@@ -170,6 +170,30 @@ final class SWS
      */
     public function activate()
     {
+        // TODO: need to get settings first
+        update_option('sws_settings', array(
+            "squareAuto" => array(
+                "isActive" => false,
+                "stock" => true,
+                "title" => true,
+                "description" => true,
+                "images" => true,
+                "category" => true,
+                "price" => true,
+            ),
+            "wooAuto" =>  array(
+                "isActive" => false,
+                "stock" => false,
+                "title" => false,
+                "description" => false,
+                "images" => false,
+                "category" => false,
+                "price" => false,
+            ),
+        ));
+
+
+
         // global $wpdb;
 
         // $table_name = $wpdb->prefix . 'sws_import_progress';
@@ -253,33 +277,6 @@ final class SWS
     {
         // Init classes
         add_action('init', [$this, 'init_classes']);
-
-        //  // Localize our plugin
-        //  add_action( 'init', [ $this, 'localization_setup' ] );
-        $current_settings = get_option('sws_settings', []);
-
-        if ($current_settings === false) {
-            update_option('sws_settings', array(
-                "squareAuto" => array(
-                    "isActive" => false,
-                    "stock" => true,
-                    "title" => true,
-                    "description" => true,
-                    "images" => true,
-                    "category" => true,
-                    "price" => true,
-                ),
-                "wooAuto" =>  array(
-                    "isActive" => false,
-                    "stock" => false,
-                    "title" => false,
-                    "description" => false,
-                    "images" => false,
-                    "category" => false,
-                    "price" => false,
-                ),
-            ));
-        }
 
 
         // Add the plugin page links
@@ -395,7 +392,6 @@ function your_plugin_activation_notice()
 }
 add_action('admin_notices', 'your_plugin_activation_notice');
 
-
-
-
 sws();
+
+new Pixeldev\SWS\Woo\WooProduct();

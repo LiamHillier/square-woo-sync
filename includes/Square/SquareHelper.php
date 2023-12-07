@@ -129,5 +129,123 @@ class SquareHelper
             return null;
         }
     }
-    // Other Square-related methods can be added here
+
+
+    public function updateSquareProduct($wooData, $squareData)
+    {
+        $idempotencyKey = uniqid('sq_', true);
+
+        $squareData['item_data']['name'] = $wooData['name'];
+        $squareData['item_data']['description'] = $wooData['description'];
+
+        $this->updateVariations($squareData, $wooData);
+
+        $inventory = $this->getInventory($wooData);
+        $inventoryUpdateStatus = null;
+        if (!empty($inventory['success']) && !empty($inventory['data'])) {
+            $updatedInventoryData = $this->updatedInventoryData($inventory['data']['counts'], $wooData);
+            $inventoryUpdateStatus = $this->updateInventory($updatedInventoryData);
+        }
+
+        $body = [
+            'idempotency_key' => $idempotencyKey,
+            'object' => $squareData
+        ];
+        $productUpdateStatus = $this->squareApiRequest("/catalog/object", 'POST', $body);
+
+        return [
+            'inventoryUpdateStatus' => $inventoryUpdateStatus,
+            'productUpdateStatus' => $productUpdateStatus
+        ];
+    }
+
+    private function updateVariableProductVariations(&$squareVariations, $wooVariations)
+    {
+        if (empty($wooVariations)) {
+            return;
+        }
+
+        $wooVariationMap = array_column($wooVariations, null, 'square_id');
+        foreach ($squareVariations as &$variation) {
+            if (isset($wooVariationMap[$variation['id']])) {
+                $this->updateSimpleProductVariation($variation, $wooVariationMap[$variation['id']]);
+            }
+        }
+    }
+
+    private function updateInventory($inventory)
+    {
+        $idempotencyKey = uniqid('sq_', true);
+        $occurredAt = date('Y-m-d\TH:i:s.') . sprintf("%03d", (microtime(true) - floor(microtime(true))) * 1000) . 'Z';
+
+        $changes = array_map(function ($inv) use ($occurredAt) {
+            return [
+                'physical_count' => [
+                    'catalog_object_id' => $inv['catalog_object_id'],
+                    'location_id' => $inv['location_id'],
+                    'occurred_at' => $occurredAt,
+                    'state' => 'IN_STOCK',
+                    'quantity' => (string)$inv['quantity']
+                ],
+                'type' => 'PHYSICAL_COUNT'
+            ];
+        }, array_filter($inventory, function ($inv) {
+            return $inv['state'] === 'IN_STOCK';
+        }));
+
+        return $this->squareApiRequest("/inventory/changes/batch-create", 'POST', [
+            'idempotency_key' => $idempotencyKey,
+            'changes' => $changes
+        ]);
+    }
+
+    private function updateVariations(&$squareData, $wooData)
+    {
+        $this->updateVariableProductVariations($squareData['item_data']['variations'], $wooData['variations']);
+    }
+
+    private function updateSimpleProductVariation(&$squareVariation, $wooVariation)
+    {
+        $squareVariation['item_variation_data']['price_money']['amount'] = floatval($wooVariation['price']) * 100;
+        $squareVariation['item_variation_data']['sku'] = $wooVariation['sku'];
+    }
+
+
+
+    private function getInventory($wooData)
+    {
+        $endpoint = "/inventory/counts/batch-retrieve"; // Endpoint for Upsert Catalog Object
+        $method = 'POST'; // The API requires a POST request
+        $body = [
+            'catalog_object_ids' => []
+        ];
+
+        foreach ($wooData['variations'] as $variation) {
+            if (isset($variation['square_id'])) {
+                $body['catalog_object_ids'][] = $variation['square_id'];
+            }
+        }
+        // Make the API request and handle the response
+        return $this->squareApiRequest($endpoint, $method, $body);
+    }
+
+    private function updatedInventoryData($inventory, $wooData)
+    {
+        if (!isset($wooData['variations'])) {
+            // Handle the case where variations are not set
+            return $inventory;
+        }
+
+        foreach ($inventory as &$inv) { // Notice the use of & to modify the array items directly
+            foreach ($wooData['variations'] as $variation) {
+                if (isset($variation['square_id']) && $variation['square_id'] === $inv['catalog_object_id']) {
+                    $inv['quantity'] = $variation['stock'];
+                    break; // This breaks out of the inner loop only
+                }
+            }
+        }
+        unset($inv); // Unset the reference to avoid unexpected behavior later
+
+        return $inventory;
+    }
 }

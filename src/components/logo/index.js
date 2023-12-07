@@ -1,8 +1,10 @@
-import React from 'react';
-import LogoImg from '../../../assets/images/logo-new.svg';
+import React from "react";
+import LogoImg from "../../../assets/images/box-outline.svg";
 
 const Logo = () => {
-	return <img className="h-8 w-auto" src={ LogoImg } alt="Your Company" />;
+  return (
+    <img className="h-8 w-auto text-white" src={LogoImg} alt="Your Company" />
+  );
 };
 
 export default Logo;
