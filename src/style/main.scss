@@ -1,17 +1,23 @@
 .toplevel_page_square-woo-sync #wpbody-content {
   margin-top: 64px;
+  height: 100%;
 }
-
+.toplevel_page_square-woo-sync {
+  .notice,
+  #screen-meta {
+    @apply max-w-6xl mx-auto;
+  }
+}
 #wpcontent {
   padding-left: 0 !important;
 }
 
 #square-woo-sync {
-  @apply bg-gray-100;
-  height: calc(100vh - 100px);
+  @apply bg-gray-100 max-w-7xl mx-auto h-full min-h-screen;
   header {
     width: calc(100% - 160px);
-    @apply z-50;
+    @apply z-50 left-0;
+    margin-left: 160px;
   }
 }
 
@@ -59,4 +65,10 @@
 
 .toast-position {
   top: 8rem !important;
+}
+
+@media (max-width: 1368px) {
+  .toplevel_page_square-woo-sync #wpbody-content {
+    @apply px-5;
+  }
 }

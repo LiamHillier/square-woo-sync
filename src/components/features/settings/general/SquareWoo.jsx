@@ -95,10 +95,6 @@ const SquareWoo = ({ settings, updateSettings, settingsLoading }) => {
                 />
               ))}
             </ul>
-            <p>
-              Have refined control over the data you choose to synchronize
-              automatically with Woo.
-            </p>
           </>
         )}
       </div>

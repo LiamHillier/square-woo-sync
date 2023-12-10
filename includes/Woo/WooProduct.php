@@ -13,8 +13,83 @@ class WooProduct
 {
     public function __construct()
     {
-        add_action('woocommerce_update_product', [$this, 'onProductUpdate']);
+        add_action('init', array($this, 'initWooProduct'));
     }
+
+    public function initWooProduct()
+    {
+        if (class_exists('WooCommerce')) {
+            // WooCommerce is loaded, now you can safely use its functions
+            add_action('add_meta_boxes', array($this, 'addSyncMetaBox'));
+            add_action('admin_post_sync_to_square', array($this, 'handleSyncToSquare'));
+            add_action('admin_footer', array($this, 'addAjaxScript'));
+            add_action('wp_ajax_sync_to_square', array($this, 'handleAjaxSyncToSquare'));
+        }
+    }
+
+    public function addSyncMetaBox()
+    {
+        add_meta_box(
+            'sws_sync_square',           // Unique ID
+            'Sync with Square',          // Box title
+            array($this, 'syncMetaBoxHtml'), // Content callback
+            'product',                   // Post type
+            'side',                      // Context
+            'high'                       // Priority
+        );
+    }
+
+    public function addAjaxScript()
+    {
+        $screen = get_current_screen();
+        if ($screen->id !== 'product') {
+            return;
+        }
+
+        // Get the site's base URL and append the path to your JavaScript file
+        $js_file_url = get_site_url(null, '/wp-content/plugins/square-woo-sync/assets/js/sync-metabox.js');
+
+        wp_enqueue_script('sws-custom-script', $js_file_url, array('jquery'), '1.0', true);
+
+        wp_localize_script('sws-custom-script', 'swsAjax', array(
+            'ajaxurl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('sws_ajax_nonce'),
+        ));
+    }
+
+
+
+    public function handleAjaxSyncToSquare()
+    {
+        check_ajax_referer('sws_ajax_nonce', 'nonce');
+
+        $product_id = intval($_POST['product_id']);
+        if ($product_id) {
+            $result = $this->onProductUpdate($product_id);
+            error_log(json_encode($result));
+            if ($result && isset($result['inventoryUpdateStatus']['success']) && $result['inventoryUpdateStatus']['success'] === true || isset($result['productUpdateStatus']['success']) && $result['productUpdateStatus']['success'] === true) {
+                wp_send_json_success(array('message' => 'Product synced successfully with Square.'));
+            } else {
+                wp_send_json_error(array('message' => $result['error']));
+            }
+        } else {
+            wp_send_json_error(array('message' => 'Invalid product ID.'));
+        }
+    }
+
+    public function syncMetaBoxHtml($post)
+    {
+        $square_product_id = get_post_meta($post->ID, 'square_product_id', true);
+
+        if (!empty($square_product_id)) {
+            echo '<p>Sync this product to Square</p>';
+            echo '<button id="sync_to_square_button" class="update-button button button-primary button-large" data-product-id="' . esc_attr($post->ID) . '">Sync to Square</button>';
+            echo '<p class="sws-notice">Update the product and then run the above sync. For a full tutorial, please read the documentation.</p>';
+        } else {
+            echo '<p>No Square product ID found. Unable to sync to square. Only products imported from square can be synced.</p>';
+        }
+    }
+
 
     public function onProductUpdate($productId)
     {
@@ -32,7 +107,7 @@ class WooProduct
         $wooData = $this->getWooProductData($product, $squareProductId);
 
         if ($squareProductId && !empty($wooData)) {
-            $this->updateSquareProduct($squareProductId, $wooData);
+            return $this->updateSquareProduct($squareProductId, $wooData);
         }
     }
 
@@ -74,7 +149,6 @@ class WooProduct
     {
         $squareHelper = new SquareHelper();
         $squareProductData = $squareHelper->getSquareItemDetails($squareProductId);
-
         if (isset($squareProductData['object'])) {
 
             if (count($wooData['variations']) === 1) {
@@ -82,7 +156,9 @@ class WooProduct
             }
 
             $updatedResponse = $squareHelper->updateSquareProduct($wooData, $squareProductData['object']);
-            error_log(json_encode($updatedResponse));
+            return $updatedResponse;
+        } else {
+            return $squareProductData;
         }
     }
 }

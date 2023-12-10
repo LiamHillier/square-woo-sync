@@ -36,15 +36,6 @@ const WooSquare = ({ settings, updateSettings, settingsLoading }) => {
 
   const checkboxItems = [
     { id: "stock", label: "Stock", checked: wooSquare.stock },
-    { id: "title", label: "Title", checked: wooSquare.title },
-    { id: "price", label: "Price", checked: wooSquare.price },
-    {
-      id: "description",
-      label: "Description",
-      checked: wooSquare.description,
-    },
-    { id: "images", label: "Images", checked: wooSquare.images },
-    { id: "category", label: "Category", checked: wooSquare.category },
   ];
 
   return (
@@ -67,9 +58,17 @@ const WooSquare = ({ settings, updateSettings, settingsLoading }) => {
             Woo to Square
           </span>
         </label>
+
         {wooSquare.isActive && !settingsLoading && (
           <>
-            <ul className="fit-content flex-wrap items-center justify-start text-sm font-medium text-gray-900 bg-white  sm:flex my-3">
+            <p className="mt-4">
+              Stock/Inventory count is the the sole permitted auto-sync option
+              from Woo to Square. <a href="/">Learn why here</a>
+            </p>
+            <p>
+              You can manually sync from the product actions. Learn how here
+            </p>
+            <ul className="fit-content flex-wrap items-center justify-start text-sm font-medium text-gray-900 bg-white  sm:flex">
               {checkboxItems.map((item) => (
                 <CheckboxItem
                   key={item.id}

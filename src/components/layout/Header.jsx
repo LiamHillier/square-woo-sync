@@ -22,10 +22,10 @@ const navigation = [
 
 export default function Header() {
   return (
-    <header className="fixed top-0 top-[32px]">
-      <Disclosure as="nav" className="bg-gray-800 w-full">
+    <header className="fixed top-0 top-[32px] bg-gray-800 ">
+      <Disclosure as="nav" className="w-full max-w-7xl mx-auto justify-between">
         {({ open }) => (
-          <div className=" mx-auto px-4 sm:px-6 lg:px-20 flex h-16 justify-between ">
+          <div className=" mx-auto px-4 sm:px-4 flex h-16 justify-between ">
             <div className="flex">
               <div className="-ml-2 mr-2 flex items-center md:hidden">
                 <Disclosure.Button className="relative inline-flex items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">

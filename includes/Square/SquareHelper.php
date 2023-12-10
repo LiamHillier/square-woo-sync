@@ -126,7 +126,7 @@ class SquareHelper
         } else {
             // Handle the error case
             error_log('Failed to get Square item details: ' . $response['error']);
-            return null;
+            return ['success' => false, 'error' => $response['error']];
         }
     }
 
