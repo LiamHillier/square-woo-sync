@@ -23,7 +23,7 @@
 
 /* Styles for square-woo-sync */
 #square-woo-sync {
-  @apply bg-gray-100 max-w-7xl mx-auto h-full min-h-screen px-5 pt-8;
+  @apply bg-gray-100 max-w-7xl mx-auto h-full min-h-screen px-5;
 
   .plugin-nav {
     width: calc(100% - 160px);
@@ -65,8 +65,7 @@
 }
 
 .toplevel_page_square-woo-sync .notice,
-.toplevel_page_square-woo-sync #screen-meta,
-#wpbody-content {
+.toplevel_page_square-woo-sync #screen-meta {
   margin-top: 14px !important;
 }
 
