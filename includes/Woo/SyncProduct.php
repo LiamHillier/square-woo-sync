@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
 /**
  * Class to handle WooCommerce product interactions.
  */
-class WooProduct
+class SyncProduct
 {
 
     /**

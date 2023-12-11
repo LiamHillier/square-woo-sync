@@ -266,6 +266,7 @@ final class SWS
         // Common classes
         $this->container['assets']   = new  Pixeldev\SWS\Assets\Manager();
         $this->container['rest_api'] = new  Pixeldev\SWS\REST\Api();
+        $this->container['sync_product'] = new Pixeldev\SWS\Woo\SyncProduct();
     }
 
     /**
@@ -395,5 +396,3 @@ function your_plugin_activation_notice()
 add_action('admin_notices', 'your_plugin_activation_notice');
 
 sws();
-
-new Pixeldev\SWS\Woo\WooProduct();
