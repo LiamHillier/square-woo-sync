@@ -2,6 +2,9 @@
 
 namespace Pixeldev\SWS\Assets;
 
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
 /**
  * Asset Manager class.
  *

@@ -4,6 +4,10 @@ namespace Pixeldev\SWS\Square;
 
 use Pixeldev\SWS\Square\SquareHelper;
 
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
+
 /**
  * Class responsible for importing products from Square to WooCommerce.
  */

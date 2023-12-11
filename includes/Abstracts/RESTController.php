@@ -4,6 +4,10 @@ namespace Pixeldev\SWS\Abstracts;
 
 use WP_REST_Controller;
 
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
+
 /**
 * Rest Controller base class.
 *
@@ -60,7 +64,7 @@ abstract class RESTController extends WP_REST_Controller {
         $max_pages = ceil( $total_items / $per_page );
 
         $response->header( 'X-WP-TotalPages', (int) $max_pages );
-        $base = add_query_arg( $request->get_query_params(), rest_url( sprintf( '/%s/%s', $this->namespace, $this->base ) ) );
+        $base = add_query_arg( $request->get_query_params(), rest_url( sprintf( '/%s/%s', $this->namespace ) ) );
 
         if ( $page > 1 ) {
             $prev_page = $page - 1;

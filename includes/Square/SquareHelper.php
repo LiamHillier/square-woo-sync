@@ -2,6 +2,10 @@
 
 namespace Pixeldev\SWS\Square;
 
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
+
 /**
  * Helper class for handling Square API requests.
  */

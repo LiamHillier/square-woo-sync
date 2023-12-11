@@ -2,6 +2,10 @@
 
 namespace Pixeldev\SWS\Admin;
 
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
+
 /**
  * Admin Menu class.
  *

@@ -13,7 +13,9 @@
  * @package         SquareWooSync
  */
 
-defined('ABSPATH') || exit;
+if (!defined('ABSPATH')) {
+    exit; // Exit if accessed directly
+}
 
 /**
  * SWS class.
