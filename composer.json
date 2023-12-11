@@ -14,5 +14,8 @@
 			"name": "Pixeldev",
 			"email": "liam@pixeldev.com.au"
 		}
-	]
+	],
+	"require-dev": {
+		"php-stubs/woocommerce-stubs": "^8.3"
+	}
 }
