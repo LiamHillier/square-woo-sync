@@ -101,7 +101,7 @@ class SquareController extends RESTController
             ];
 
             $square = new SquareHelper();
-            $response = $square->squareApiRequest('/catalog/search', 'POST', $requestBody);
+            $response = $square->square_api_request('/catalog/search', 'POST', $requestBody);
 
             if (isset($response) && $response['success'] === true) {
                 $squareImport = new SquareImport();
@@ -115,7 +115,7 @@ class SquareController extends RESTController
                     'categories' => $canImportData['category'],
                     'image' => $canImportData['images']
                 );
-                $categories = $squareInventory->getAllSquareCategories();
+                $categories = $squareInventory->get_all_square_categories();
                 foreach ($response['data']['objects'] as &$product) {
 
                     $this->processProductVariations($product, $square);
@@ -124,7 +124,7 @@ class SquareController extends RESTController
                         // Process image URLs one by one instead of pre-fetching all
                         $product['item_data']['image_urls'] = [];
                         foreach ($product['item_data']['image_ids'] as $id) {
-                            $product['item_data']['image_urls'][] = $squareInventory->fetchImageURL($id);
+                            $product['item_data']['image_urls'][] = $squareInventory->fetch_image_url($id);
                         }
                     }
 
@@ -183,7 +183,7 @@ class SquareController extends RESTController
     {
         $catalogObjectId = $data['data']['object']['inventory_counts'][0]['catalog_object_id'] ?? '';
         $square = new SquareHelper();
-        $squareItemDetails = $square->getSquareItemDetails($catalogObjectId);
+        $squareItemDetails = $square->get_square_item_details($catalogObjectId);
 
         if ($squareItemDetails) {
             $wooProducts = $this->get_woocommerce_products();
@@ -232,7 +232,7 @@ class SquareController extends RESTController
             return new WP_Error(401, 'Access token not set');
         }
 
-        if (!$square->isTokenValid()) {
+        if (!$square->is_token_valid()) {
             return new WP_Error(401, 'Invalid access token');
         }
 
@@ -272,7 +272,7 @@ class SquareController extends RESTController
     private function compare_skus($squareInventory, $woocommerceProducts, $square)
     {
 
-        $categories = $square->getAllSquareCategories();
+        $categories = $square->get_all_square_categories();
         $result = [];
         // Create a mapping of WooCommerce square_product_id to WooCommerce product IDs
         $squareProductIdMapping = [];

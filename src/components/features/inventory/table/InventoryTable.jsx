@@ -163,6 +163,7 @@ const InventoryTable = ({ getInventory }) => {
     }
 
     const updatedTableData = updateInventoryTable(results);
+    console.log(results);
     if (updatedTableData) {
       dispatch(setInventory(updatedTableData));
     }
@@ -174,21 +175,21 @@ const InventoryTable = ({ getInventory }) => {
   const updateInventoryTable = (results) => {
     return inventory.map((inv) => {
       const matchedItem = results.find((res) => res.square_id === inv.id);
-      const importStatus = matchedItem
-        ? matchedItem.status === "success"
-        : false;
+      const importStatus =
+        matchedItem && matchedItem.status === "success" ? true : false;
 
       return {
         ...inv,
-        woocommerce_product_id: matchedItem?.product_id || null,
-        imported: importStatus,
-        status: matchedItem?.status,
+        woocommerce_product_id:
+          matchedItem?.product_id || inv.woocommerce_product_id,
+        imported: matchedItem ? importStatus : inv.imported,
+        status: matchedItem ? importStatus : inv.status,
         item_data: {
           ...inv.item_data,
           variations: inv.item_data.variations.map((variation) => ({
             ...variation,
-            imported: importStatus,
-            status: matchedItem?.status,
+            imported: matchedItem ? importStatus : inv.imported,
+            status: matchedItem ? importStatus : inv.status,
           })),
         },
       };

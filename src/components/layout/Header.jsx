@@ -22,7 +22,7 @@ const navigation = [
 
 export default function Header() {
   return (
-    <header className="fixed top-0 top-[32px] bg-gray-800 ">
+    <header className="fixed top-0 top-[32px] bg-gray-800 plugin-nav">
       <Disclosure as="nav" className="w-full max-w-7xl mx-auto justify-between">
         {({ open }) => (
           <div className=" mx-auto px-4 sm:px-4 flex h-16 justify-between ">

@@ -2,21 +2,37 @@
 
 namespace Pixeldev\SWS\Square;
 
+/**
+ * Helper class for handling Square API requests.
+ */
 class SquareHelper
 {
-    private $accessToken;
-    private $encryptionKey = 'EE8E1E71AA6E692DB5B7C6E2AEB7D';
-    private $apiBaseUrl = 'https://connect.squareupsandbox.com/v2'; // Base URL for Square API
+    private $access_token;
+    private $encryption_key = 'EE8E1E71AA6E692DB5B7C6E2AEB7D';
+    private $api_base_url = 'https://connect.squareupsandbox.com/v2'; // Base URL for Square API
 
+    /**
+     * Constructor.
+     */
     public function __construct()
     {
-        $this->accessToken = $this->get_access_token();
+        $this->access_token = $this->get_access_token();
     }
 
-    public function squareApiRequest($endpoint, $method = 'GET', $body = null, $opToken = null)
+    /**
+     * Makes a request to the Square API.
+     * 
+     * @param string $endpoint The API endpoint.
+     * @param string $method   The request method.
+     * @param mixed  $body     The request body.
+     * @param string $op_token Optional token for the request.
+     * 
+     * @return array The response from the API.
+     */
+    public function square_api_request($endpoint, $method = 'GET', $body = null, $op_token = null)
     {
-        $token = isset($opToken) ? $opToken : $this->accessToken;
-        $url = $this->apiBaseUrl . $endpoint;
+        $token = isset($op_token) ? $op_token : $this->access_token;
+        $url = $this->api_base_url . $endpoint;
         $headers = [
             'Authorization: Bearer ' . $token,
             'Content-Type: application/json',
@@ -29,13 +45,13 @@ class SquareHelper
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-        if ($body !== null) {
+        if (null !== $body) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
         }
 
         $response = curl_exec($ch);
         $error = curl_error($ch);
-        $statusCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $status_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         if ($error) {
@@ -43,37 +59,41 @@ class SquareHelper
             return ['success' => false, 'error' => $error];
         }
 
-        if ($statusCode >= 200 && $statusCode < 300) {
+        if ($status_code >= 200 && $status_code < 300) {
             return ['success' => true, 'data' => json_decode($response, true)];
         } else {
-            $errorMessage = "Square API request failed. Status Code: $statusCode. Response: $response";
-            error_log($errorMessage);
-            return ['success' => false, 'error' => $errorMessage];
+            $error_message = "Square API request failed. Status Code: $status_code. Response: $response";
+            error_log($error_message);
+            return ['success' => false, 'error' => $error_message];
         }
     }
 
     /**
-     * Validates Access Token
+     * Validates the Access Token.
+     *
+     * @param string|null $op_token Optional token to validate.
+     * @return bool True if the token is valid, false otherwise.
      */
-    public function isTokenValid($opToken = null)
+    public function is_token_valid($op_token = null)
     {
-        if (isset($opToken)) {
-            $response = $this->squareApiRequest('/locations', 'GET', null,  $opToken);
+        if (isset($op_token)) {
+            $response = $this->square_api_request('/locations', 'GET', null, $op_token);
             return $response['success'] && $response['data'] !== null;
         }
-        $response = $this->squareApiRequest('/locations');
+        $response = $this->square_api_request('/locations');
         return $response['success'] && $response['data'] !== null;
     }
+
     /**
      * Encrypts the access token.
      *
      * @param string $token The access token to encrypt.
-     * @return string The encrypted token.
+     * @return string|false The encrypted token, or false on failure.
      */
     public function encrypt_access_token($token)
     {
         $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
-        $encrypted = openssl_encrypt($token, 'aes-256-cbc', $this->encryptionKey, 0, $iv);
+        $encrypted = openssl_encrypt($token, 'aes-256-cbc', $this->encryption_key, 0, $iv);
         if (false === $encrypted) {
             error_log('Encryption failed.');
             return false;
@@ -81,16 +101,17 @@ class SquareHelper
 
         return base64_encode($encrypted . '::' . $iv);
     }
+
     /**
      * Decrypts the access token.
      *
-     * @param string $token The access token to decrypt.
-     * @return string The decrypted token.
+     * @param string $encrypted_token The encrypted access token.
+     * @return string|false The decrypted token, or false on failure.
      */
-    public function decrypt_access_token($encryptedToken)
+    public function decrypt_access_token($encrypted_token)
     {
-        list($encrypted_data, $iv) = explode('::', base64_decode($encryptedToken), 2);
-        $decrypted = openssl_decrypt($encrypted_data, 'aes-256-cbc', $this->encryptionKey, 0, $iv);
+        list($encrypted_data, $iv) = explode('::', base64_decode($encrypted_token), 2);
+        $decrypted = openssl_decrypt($encrypted_data, 'aes-256-cbc', $this->encryption_key, 0, $iv);
         if (false === $decrypted) {
             error_log('Decryption failed.');
             return false;
@@ -99,7 +120,11 @@ class SquareHelper
         return $decrypted;
     }
 
-
+    /**
+     * Retrieves the access token from settings.
+     *
+     * @return string|null The access token, or null if not found.
+     */
     public function get_access_token()
     {
         $settings = get_option('sws_settings', []);
@@ -111,81 +136,102 @@ class SquareHelper
         return null;
     }
 
-    public function getSquareItemDetails($catalogObjectId)
+
+    /**
+     * Retrieves details of a Square item.
+     *
+     * @param string $catalog_object_id The ID of the catalog object.
+     * @return array Response array with success status and data or error message.
+     */
+    public function get_square_item_details($catalog_object_id)
     {
-        // Define the endpoint to get item details
-        // Replace with the appropriate endpoint as per Square API documentation
-        $endpoint = "/catalog/object/" . $catalogObjectId;
+        $endpoint = "/catalog/object/" . $catalog_object_id;
+        $response = $this->square_api_request($endpoint);
 
-        // Make the API request using the squareApiRequest method
-        $response = $this->squareApiRequest($endpoint);
-
-        // Check if the request was successful and return the item details
         if ($response['success']) {
             return $response['data'];
         } else {
-            // Handle the error case
             error_log('Failed to get Square item details: ' . $response['error']);
             return ['success' => false, 'error' => $response['error']];
         }
     }
 
-
-    public function updateSquareProduct($wooData, $squareData)
+    /**
+     * Updates a Square product with WooCommerce data.
+     *
+     * @param array $woo_data    Data from WooCommerce product.
+     * @param array $square_data Data from Square product.
+     * @return array Response array with status of inventory and product update.
+     */
+    public function update_square_product($woo_data, $square_data)
     {
-        $idempotencyKey = uniqid('sq_', true);
+        $idempotency_key = uniqid('sq_', true);
 
-        $squareData['item_data']['name'] = $wooData['name'];
-        $squareData['item_data']['description'] = $wooData['description'];
+        // Update product details
+        $square_data['item_data']['name'] = $woo_data['name'];
+        $square_data['item_data']['description'] = $woo_data['description'];
 
-        $this->updateVariations($squareData, $wooData);
+        // Update variations and inventory
+        $this->update_variations($square_data, $woo_data);
+        $inventory = $this->get_inventory($woo_data);
+        $inventory_update_status = null;
 
-        $inventory = $this->getInventory($wooData);
-        $inventoryUpdateStatus = null;
         if (!empty($inventory['success']) && !empty($inventory['data'])) {
-            $updatedInventoryData = $this->updatedInventoryData($inventory['data']['counts'], $wooData);
-            $inventoryUpdateStatus = $this->updateInventory($updatedInventoryData);
+            $updated_inventory_data = $this->updated_inventory_data($inventory['data']['counts'], $woo_data);
+            $inventory_update_status = $this->update_inventory($updated_inventory_data);
         }
 
         $body = [
-            'idempotency_key' => $idempotencyKey,
-            'object' => $squareData
+            'idempotency_key' => $idempotency_key,
+            'object' => $square_data
         ];
-        $productUpdateStatus = $this->squareApiRequest("/catalog/object", 'POST', $body);
+        $product_update_status = $this->square_api_request("/catalog/object", 'POST', $body);
 
         return [
-            'inventoryUpdateStatus' => $inventoryUpdateStatus,
-            'productUpdateStatus' => $productUpdateStatus
+            'inventoryUpdateStatus' => $inventory_update_status,
+            'productUpdateStatus' => $product_update_status
         ];
     }
 
-    private function updateVariableProductVariations(&$squareVariations, $wooVariations)
+    /**
+     * Updates variations of a variable product in Square.
+     *
+     * @param array &$square_variations Variations from Square.
+     * @param array $woo_variations Variations from WooCommerce.
+     */
+    private function update_variable_product_variations(&$square_variations, $woo_variations)
     {
-        if (empty($wooVariations)) {
+        if (empty($woo_variations)) {
             return;
         }
 
-        $wooVariationMap = array_column($wooVariations, null, 'square_id');
-        foreach ($squareVariations as &$variation) {
-            if (isset($wooVariationMap[$variation['id']])) {
-                $this->updateSimpleProductVariation($variation, $wooVariationMap[$variation['id']]);
+        $woo_variation_map = array_column($woo_variations, null, 'square_id');
+        foreach ($square_variations as &$variation) {
+            if (isset($woo_variation_map[$variation['id']])) {
+                $this->update_simple_product_variation($variation, $woo_variation_map[$variation['id']]);
             }
         }
     }
 
-    private function updateInventory($inventory)
+    /**
+     * Updates inventory in Square.
+     *
+     * @param array $inventory Inventory data to update.
+     * @return array Response from the Square API.
+     */
+    private function update_inventory($inventory)
     {
-        $idempotencyKey = uniqid('sq_', true);
-        $occurredAt = date('Y-m-d\TH:i:s.') . sprintf("%03d", (microtime(true) - floor(microtime(true))) * 1000) . 'Z';
+        $idempotency_key = uniqid('sq_', true);
+        $occurred_at = date('Y-m-d\TH:i:s.') . sprintf("%03d", (microtime(true) - floor(microtime(true))) * 1000) . 'Z';
 
-        $changes = array_map(function ($inv) use ($occurredAt) {
+        $changes = array_map(function ($inv) use ($occurred_at) {
             return [
                 'physical_count' => [
                     'catalog_object_id' => $inv['catalog_object_id'],
                     'location_id' => $inv['location_id'],
-                    'occurred_at' => $occurredAt,
+                    'occurred_at' => $occurred_at,
                     'state' => 'IN_STOCK',
-                    'quantity' => (string)$inv['quantity']
+                    'quantity' => (string) $inv['quantity']
                 ],
                 'type' => 'PHYSICAL_COUNT'
             ];
@@ -193,58 +239,80 @@ class SquareHelper
             return $inv['state'] === 'IN_STOCK';
         }));
 
-        return $this->squareApiRequest("/inventory/changes/batch-create", 'POST', [
-            'idempotency_key' => $idempotencyKey,
+        return $this->square_api_request("/inventory/changes/batch-create", 'POST', [
+            'idempotency_key' => $idempotency_key,
             'changes' => $changes
         ]);
     }
 
-    private function updateVariations(&$squareData, $wooData)
+    /**
+     * Updates the variations in the Square product data.
+     *
+     * @param array &$square_data Data from Square product.
+     * @param array $woo_data     Data from WooCommerce product.
+     */
+    private function update_variations(&$square_data, $woo_data)
     {
-        $this->updateVariableProductVariations($squareData['item_data']['variations'], $wooData['variations']);
+        $this->update_variable_product_variations($square_data['item_data']['variations'], $woo_data['variations']);
     }
 
-    private function updateSimpleProductVariation(&$squareVariation, $wooVariation)
+    /**
+     * Updates a single variation of a product in Square.
+     *
+     * @param array &$square_variation Variation data from Square.
+     * @param array $woo_variation     Variation data from WooCommerce.
+     */
+    private function update_simple_product_variation(&$square_variation, $woo_variation)
     {
-        $squareVariation['item_variation_data']['price_money']['amount'] = floatval($wooVariation['price']) * 100;
-        $squareVariation['item_variation_data']['sku'] = $wooVariation['sku'];
+        $square_variation['item_variation_data']['price_money']['amount'] = floatval($woo_variation['price']) * 100;
+        $square_variation['item_variation_data']['sku'] = $woo_variation['sku'];
     }
 
-
-
-    private function getInventory($wooData)
+    /**
+     * Retrieves inventory data for WooCommerce product variations.
+     *
+     * @param array $woo_data Data from WooCommerce product.
+     * @return array Response from the Square API.
+     */
+    private function get_inventory($woo_data)
     {
-        $endpoint = "/inventory/counts/batch-retrieve"; // Endpoint for Upsert Catalog Object
-        $method = 'POST'; // The API requires a POST request
+        $endpoint = "/inventory/counts/batch-retrieve";
+        $method = 'POST';
         $body = [
             'catalog_object_ids' => []
         ];
 
-        foreach ($wooData['variations'] as $variation) {
+        foreach ($woo_data['variations'] as $variation) {
             if (isset($variation['square_id'])) {
                 $body['catalog_object_ids'][] = $variation['square_id'];
             }
         }
-        // Make the API request and handle the response
-        return $this->squareApiRequest($endpoint, $method, $body);
+
+        return $this->square_api_request($endpoint, $method, $body);
     }
 
-    private function updatedInventoryData($inventory, $wooData)
+    /**
+     * Updates the inventory data based on WooCommerce variations.
+     *
+     * @param array $inventory Current inventory data.
+     * @param array $woo_data  Data from WooCommerce product.
+     * @return array Modified inventory data.
+     */
+    private function updated_inventory_data($inventory, $woo_data)
     {
-        if (!isset($wooData['variations'])) {
-            // Handle the case where variations are not set
+        if (!isset($woo_data['variations'])) {
             return $inventory;
         }
 
-        foreach ($inventory as &$inv) { // Notice the use of & to modify the array items directly
-            foreach ($wooData['variations'] as $variation) {
+        foreach ($inventory as &$inv) {
+            foreach ($woo_data['variations'] as $variation) {
                 if (isset($variation['square_id']) && $variation['square_id'] === $inv['catalog_object_id']) {
                     $inv['quantity'] = $variation['stock'];
-                    break; // This breaks out of the inner loop only
+                    break;
                 }
             }
         }
-        unset($inv); // Unset the reference to avoid unexpected behavior later
+        unset($inv);
 
         return $inventory;
     }

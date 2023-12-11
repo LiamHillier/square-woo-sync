@@ -36,6 +36,7 @@ export default function Inventory() {
         hideProgressBar: false,
         closeOnClick: true,
       });
+      console.log(response);
       dispatch(setInventory(response));
     } catch (error) {
       toast.update(id, {

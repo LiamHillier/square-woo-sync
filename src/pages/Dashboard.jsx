@@ -72,7 +72,7 @@ export default function Dashboard() {
             </h2>
           </div>
         </header>
-        <div class="px-4 pb-5 sm:px-6">
+        <div className="px-4 pb-5 sm:px-6">
           <table className="min-w-full divide-y divide-gray-300">
             <thead>
               <tr>

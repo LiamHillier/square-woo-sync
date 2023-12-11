@@ -94,7 +94,7 @@ class SettingsController extends RESTController
         $token = $request->get_param('access_token');
         $squareHelper = new SquareHelper();
 
-        if (!$squareHelper->isTokenValid($token)) {
+        if (!$squareHelper->is_token_valid($token)) {
             $error_data = ['message' => 'The provided token is invalid', 'status' => 400];
             return rest_ensure_response($error_data, 400);
         }

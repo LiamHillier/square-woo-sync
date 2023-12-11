@@ -14,13 +14,17 @@ const TableRow = ({ row, loadingProductId, toggleExpanded }) => {
   return (
     <tr
       key={row.id}
-      onClick={toggleExpanded}
       className={classNames(rowClassNames, isExpanded ? "bg-indigo-300" : "")}
     >
       {row.getVisibleCells().map((cell, idx) => {
         return (
           <td
             key={cell.id}
+            onClick={() => {
+              if (cell.column.id === "select" || cell.column.id === "actions")
+                return;
+              toggleExpanded();
+            }}
             className={`py-4 wrap text-gray-600 ${
               idx === row.getVisibleCells().length - 1
                 ? "text-right pr-4"

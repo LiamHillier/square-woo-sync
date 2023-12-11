@@ -24,10 +24,13 @@ export const StepTwo = ({
       <div className="mt-2">
         <p>You have chosen to import/sync the following:</p>
         <ul className="flex gap-2 mt-2 flex-wrap">
-          {Object.keys(dataToImport).map((key) => {
+          {Object.keys(dataToImport).map((key, idx) => {
             if (dataToImport[key]) {
               return (
-                <li className="p-2 border border-gray-300 uppercase text-xs font-semibold">
+                <li
+                  key={dataToImport[key] + idx}
+                  className="p-2 border border-gray-300 uppercase text-xs font-semibold"
+                >
                   {key}
                 </li>
               );

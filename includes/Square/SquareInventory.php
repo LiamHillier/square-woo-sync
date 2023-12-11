@@ -2,53 +2,63 @@
 
 namespace Pixeldev\SWS\Square;
 
+/**
+ * Handles Square inventory management.
+ */
 class SquareInventory extends SquareHelper
 {
+
+    /**
+     * Constructor.
+     */
     public function __construct()
     {
         parent::__construct($this->get_access_token());
     }
 
+    /**
+     * Retrieves inventory from Square.
+     *
+     * @return array Inventory data or error message.
+     */
     public function retrieve_inventory()
     {
         try {
-            $square_products = $this->fetchSquareItems();
-            $item_options = $this->fetchSquareItemOptions();
-            $item_option_values = $this->fetchSquareItemOptionValues();
+            $square_products = $this->fetch_square_items();
+            $item_options = $this->fetch_square_item_options();
+            $item_option_values = $this->fetch_square_item_option_values();
 
-            // Initialize arrays
-            $variationIds = [];
-            $imageIds = [];
+            $variation_ids = [];
+            $image_ids = [];
 
-            // Use foreach loops instead of array_map to avoid memory-intensive operations
             foreach ($square_products as &$product) {
-                $productCatalogObjectId = $product['id'] ?? null;
-                $product['inventory_count'] = 'Not Available'; // Set default value
+                $product_catalog_object_id = $product['id'] ?? null;
+                $product['inventory_count'] = 'Not Available';
 
                 if (isset($product['item_data']['variations'])) {
                     foreach ($product['item_data']['variations'] as &$variation) {
-                        $variationId = $variation['id'] ?? null;
-                        $variation['inventory_count'] = 'Not Available'; // Set default value
-                        $variationIds[] = $variationId;
+                        $variation_id = $variation['id'] ?? null;
+                        $variation['inventory_count'] = 'Not Available';
+                        $variation_ids[] = $variation_id;
                     }
-                    unset($variation); // Break reference with the last element
+                    unset($variation);
                 }
 
                 if (isset($product['item_data']['image_ids'])) {
                     foreach ($product['item_data']['image_ids'] as $id) {
-                        $imageIds[] = $id;
+                        $image_ids[] = $id;
                     }
                 }
             }
-            unset($product); // Break reference to the last element
+            unset($product);
 
-            $inventoryCounts = $this->fetchInventoryCounts(array_unique($variationIds));
-            $imageUrls = $this->fetchSquareImageUrls(array_unique($imageIds));
+            $inventory_counts = $this->fetch_inventory_counts(array_unique($variation_ids));
+            $image_urls = $this->fetch_square_image_urls(array_unique($image_ids));
 
             foreach ($square_products as &$product) {
-                $this->enhanceProduct($product, $inventoryCounts, $item_options, $item_option_values, $imageUrls);
+                $this->enhance_product($product, $inventory_counts, $item_options, $item_option_values, $image_urls);
             }
-            unset($product); // Break reference to the last element
+            unset($product);
 
             return $square_products;
         } catch (\Exception $e) {
@@ -57,25 +67,34 @@ class SquareInventory extends SquareHelper
         }
     }
 
-    private function enhanceProduct(&$product, $inventoryCounts, $item_options, $item_option_values, $imageUrls)
+    /**
+     * Enhances product information with inventory counts and image URLs.
+     *
+     * @param array &$product           Reference to the product array.
+     * @param array $inventory_counts   Array of inventory counts.
+     * @param array $item_options       Array of item options.
+     * @param array $item_option_values Array of item option values.
+     * @param array $image_urls         Array of image URLs.
+     */
+    private function enhance_product(&$product, $inventory_counts, $item_options, $item_option_values, $image_urls)
     {
-        $productId = $product['id'] ?? null;
-        $product['inventory_count'] = $inventoryCounts[$productId] ?? 'Not Available';
+        $product_id = $product['id'] ?? null;
+        $product['inventory_count'] = $inventory_counts[$product_id] ?? 'Not Available';
 
         if (isset($product['item_data']['variations'])) {
             foreach ($product['item_data']['variations'] as &$variation) {
-                $variationId = $variation['id'] ?? null;
-                $variation['inventory_count'] = $inventoryCounts[$variationId] ?? 'Not Available';
+                $variation_id = $variation['id'] ?? null;
+                $variation['inventory_count'] = $inventory_counts[$variation_id] ?? 'Not Available';
 
                 if (isset($variation['item_variation_data']['item_option_values'])) {
-                    foreach ($variation['item_variation_data']['item_option_values'] as &$optionValue) {
-                        $optionId = $optionValue['item_option_id'];
-                        $optionValueId = $optionValue['item_option_value_id'];
-                        $optionValue['optionName'] = ($item_options[$optionId] ?? null) ?: null;
-                        $optionValue['optionValue'] = ($item_option_values[$optionId][$optionValueId] ?? null) ?: null;
-                        unset($optionValue['item_option_id'], $optionValue['item_option_value_id']);
+                    foreach ($variation['item_variation_data']['item_option_values'] as &$option_value) {
+                        $option_id = $option_value['item_option_id'];
+                        $option_value_id = $option_value['item_option_value_id'];
+                        $option_value['option_name'] = $item_options[$option_id] ?? null;
+                        $option_value['option_value'] = $item_option_values[$option_id][$option_value_id] ?? null;
+                        unset($option_value['item_option_id'], $option_value['item_option_value_id']);
                     }
-                    unset($optionValue);
+                    unset($option_value);
                 }
             }
             unset($variation);
@@ -83,68 +102,78 @@ class SquareInventory extends SquareHelper
 
         if (isset($product['item_data']['image_ids'])) {
             $product['item_data']['image_urls'] = array_map(
-                fn ($id) => $imageUrls[$id] ?? null,
+                fn ($id) => $image_urls[$id] ?? null,
                 $product['item_data']['image_ids']
             );
         }
     }
 
-
-
-
-
-    public function fetchSquareImageUrls(array $imageIds)
+    /**
+     * Fetches image URLs for a given set of Square image IDs.
+     *
+     * @param array $image_ids Array of image IDs.
+     * @return array Associative array of image URLs.
+     */
+    public function fetch_square_image_urls(array $image_ids)
     {
-        $chunkSize = 500; // Adjust this value if needed
-        $allImageUrls = [];
+        $chunk_size = 500; // Adjust this value if needed.
+        $all_image_urls = [];
 
-        foreach (array_chunk($imageIds, $chunkSize) as $chunk) {
-            $batchRequestData = ['object_ids' => $chunk];
-            $response = $this->squareApiRequest('/catalog/batch-retrieve', 'POST', $batchRequestData);
+        foreach (array_chunk($image_ids, $chunk_size) as $chunk) {
+            $batch_request_data = ['object_ids' => $chunk];
+            $response = $this->square_api_request('/catalog/batch-retrieve', 'POST', $batch_request_data);
 
             if ($response['success'] && isset($response['data']['objects'])) {
                 foreach ($response['data']['objects'] as $object) {
                     if (isset($object['image_data']['url'])) {
-                        $allImageUrls[$object['id']] = $object['image_data']['url'];
+                        $all_image_urls[$object['id']] = $object['image_data']['url'];
                     }
                 }
             } else {
                 error_log('Error fetching Square images for a chunk: ' . json_encode($response));
-                // Optionally handle partial failures here
             }
-            // Free up memory
             unset($response);
         }
 
-        return $allImageUrls;
+        return $all_image_urls;
     }
 
-    public function fetchImageURL($imageId)
+    /**
+     * Fetches the URL of a specific image from Square.
+     *
+     * @param string $image_id The ID of the image.
+     * @return string URL of the image.
+     */
+    public function fetch_image_url($image_id)
     {
-        $imageUrl = '';
-        $response = $this->squareApiRequest('/catalog/object/' . $imageId);
+        $image_url = '';
+        $response = $this->square_api_request('/catalog/object/' . $image_id);
+
         if ($response['success'] && isset($response['data']['object'])) {
             if (isset($response['data']['object']['image_data']['url'])) {
-                $imageUrl = $response['data']['object']['image_data']['url'];
+                $image_url = $response['data']['object']['image_data']['url'];
             }
         } else {
             error_log('Error fetching Square image: ' . json_encode($response));
-            // Optionally handle partial failures here
         }
-        // Free up memory
         unset($response);
-        return $imageUrl;
+        return $image_url;
     }
 
-    private function fetchSquareItems()
+    /**
+     * Fetches Square items.
+     *
+     * @return array List of Square items.
+     */
+    private function fetch_square_items()
     {
         $cursor = null;
         $items = [];
         do {
-            $response = $this->squareApiRequest('/catalog/list?types=ITEM&cursor=' . $cursor);
+            $response = $this->square_api_request('/catalog/list?types=ITEM&cursor=' . $cursor);
             if ($response['success']) {
                 foreach ($response['data']['objects'] as $item) {
-                    $items[] = $this->filterItemData($item);
+                    $items[] = $this->filter_item_data($item);
                 }
                 $cursor = $response['data']['cursor'] ?? null;
             } else {
@@ -155,9 +184,15 @@ class SquareInventory extends SquareHelper
         return $items;
     }
 
-    private function filterItemData($item)
+    /**
+     * Filters item data for relevant details.
+     *
+     * @param array $item The item data to filter.
+     * @return array Filtered item data.
+     */
+    private function filter_item_data($item)
     {
-        $filteredItem = [
+        $filtered_item = [
             'id' => $item['id'] ?? null,
             'item_data' => [
                 'category_id' => $item['item_data']['category_id'] ?? null,
@@ -169,7 +204,7 @@ class SquareInventory extends SquareHelper
         ];
 
         foreach ($item['item_data']['variations'] as $variation) {
-            $filteredItem['item_data']['variations'][] = [
+            $filtered_item['item_data']['variations'][] = [
                 'id' => $variation['id'] ?? null,
                 'item_variation_data' => [
                     'item_id' => $variation['item_variation_data']['item_id'] ?? null,
@@ -181,18 +216,21 @@ class SquareInventory extends SquareHelper
             ];
         }
 
-        return $filteredItem;
+        return $filtered_item;
     }
 
-
-
-    private function fetchSquareItemOptions()
+    /**
+     * Fetches item options from Square.
+     *
+     * @return array Associative array of item options.
+     */
+    private function fetch_square_item_options()
     {
         $cursor = null;
         $options = [];
 
         do {
-            $response = $this->squareApiRequest('/catalog/list?types=ITEM_OPTION&cursor=' . $cursor);
+            $response = $this->square_api_request('/catalog/list?types=ITEM_OPTION&cursor=' . $cursor);
             if ($response['success']) {
                 foreach ($response['data']['objects'] as $option) {
                     $options[$option['id']] = $option['item_option_data']['name'];
@@ -200,78 +238,81 @@ class SquareInventory extends SquareHelper
                 $cursor = $response['data']['cursor'] ?? null;
             } else {
                 error_log('Error fetching Square item options: ' . $response['error']);
-                return ['error' => 'Error fetching Square item options: ' . $response['error']];
             }
         } while ($cursor);
 
         return $options;
     }
 
-
-    private function fetchSquareItemOptionValues()
+    /**
+     * Fetches item option values from Square.
+     *
+     * @return array Nested associative array of item option values.
+     */
+    private function fetch_square_item_option_values()
     {
         $cursor = null;
-        $optionValues = [];
+        $option_values = [];
 
         do {
-            $response = $this->squareApiRequest('/catalog/list?types=ITEM_OPTION_VAL&cursor=' . $cursor);
+            $response = $this->square_api_request('/catalog/list?types=ITEM_OPTION_VAL&cursor=' . $cursor);
             if ($response['success']) {
-                foreach ($response['data']['objects'] as $valueObject) {
-                    $optionId = $valueObject['item_option_value_data']['item_option_id'];
-                    $valueId = $valueObject['id'];
-                    $valueName = $valueObject['item_option_value_data']['name'];
-                    $optionValues[$optionId][$valueId] = $valueName;
+                foreach ($response['data']['objects'] as $value_object) {
+                    $option_id = $value_object['item_option_value_data']['item_option_id'];
+                    $value_id = $value_object['id'];
+                    $value_name = $value_object['item_option_value_data']['name'];
+                    $option_values[$option_id][$value_id] = $value_name;
                 }
                 $cursor = $response['data']['cursor'] ?? null;
             } else {
                 error_log('Error fetching Square item option values: ' . $response['error']);
-                return ['error' => 'Error fetching Square item option values: ' . $response['error']];
             }
         } while ($cursor);
-        return $optionValues;
+
+        return $option_values;
     }
 
-    private function fetchInventoryCounts($catalogObjectIds)
+    /**
+     * Fetches inventory counts for given catalog object IDs.
+     *
+     * @param array $catalog_object_ids Array of catalog object IDs.
+     * @return array Associative array of inventory counts.
+     */
+    private function fetch_inventory_counts($catalog_object_ids)
     {
-        $chunkSize = 500; // Max items per request
-        $inventoryCounts = [];
+        $chunk_size = 500; // Max items per request.
+        $inventory_counts = [];
 
-        foreach (array_chunk($catalogObjectIds, $chunkSize) as $chunk) {
-            $postData = ['catalog_object_ids' => $chunk];
-            $response = $this->squareApiRequest('/inventory/counts/batch-retrieve', 'POST', $postData);
+        foreach (array_chunk($catalog_object_ids, $chunk_size) as $chunk) {
+            $post_data = ['catalog_object_ids' => $chunk];
+            $response = $this->square_api_request('/inventory/counts/batch-retrieve', 'POST', $post_data);
 
             if ($response['success'] && isset($response['data']['counts'])) {
                 foreach ($response['data']['counts'] as $count) {
-                    $objectId = $count['catalog_object_id'];
+                    $object_id = $count['catalog_object_id'];
                     $quantity = $count['quantity'] ?? '0';
-                    $inventoryCounts[$objectId] = $quantity;
+                    $inventory_counts[$object_id] = $quantity;
                 }
             } else {
-                // If there's an error, log it and continue with the next chunk
                 error_log('Error fetching inventory counts: ' . json_encode($response));
                 foreach ($chunk as $id) {
-                    $inventoryCounts[$id] = 'Not Available';
+                    $inventory_counts[$id] = 'Not Available';
                 }
             }
-            // Free up memory
-            unset($response);
         }
 
-        return $inventoryCounts;
+        return $inventory_counts;
     }
 
-
-
-
     /**
-     * Retrieve Square categories.
+     * Retrieves all categories from Square.
      *
-     * @return array
+     * @return array Array of categories or error message.
      */
-    public function getAllSquareCategories()
+    public function get_all_square_categories()
     {
         try {
-            $response = $this->squareApiRequest('/catalog/list?types=CATEGORY');
+            $response = $this->square_api_request('/catalog/list?types=CATEGORY');
             if ($response['success']) {
                 $categories = [];
                 foreach ($response['data']['objects'] as $object) {
@@ -286,17 +327,8 @@ class SquareInventory extends SquareHelper
                 return ['error' => 'Error fetching Square categories: ' . $response['error']];
             }
         } catch (\Exception $e) {
-            error_log('Error in SquareInventory::getAllSquareCategories: ' . $e->getMessage());
+            error_log('Error in SquareInventory::get_all_square_categories: ' . $e->getMessage());
             return ['error' => 'Failed to retrieve categories from Square.'];
         }
-    }
-
-    private function chunkArray(array $array, $chunkSize)
-    {
-        $chunks = [];
-        foreach (array_chunk($array, $chunkSize) as $chunk) {
-            $chunks[] = $chunk;
-        }
-        return $chunks;
     }
 }

@@ -4,22 +4,27 @@ namespace Pixeldev\SWS\Square;
 
 use Pixeldev\SWS\Square\SquareHelper;
 
-
+/**
+ * Class responsible for importing products from Square to WooCommerce.
+ */
 class SquareImport extends SquareHelper
 {
 
-
+    /**
+     * Constructor.
+     */
     public function __construct()
     {
         parent::__construct();
     }
 
-
     /**
      * Imports products from Square to WooCommerce.
      *
-     * @param array $square_products The products to import.
-     * @return array The results of the import process.
+     * @param array $square_products Products to import.
+     * @param array $data_to_import Data to be imported.
+     * @param bool $update_only Flag to update existing products only.
+     * @return array Results of the import process.
      */
     public function import_products($square_products, $data_to_import, $update_only = false)
     {
@@ -30,7 +35,7 @@ class SquareImport extends SquareHelper
                 $wc_product_data = $this->map_square_product_to_woocommerce($square_product);
                 $product_id = $this->create_or_update_woocommerce_product($wc_product_data, $data_to_import, $update_only);
 
-                if ($product_id !== false) {
+                if (false !== $product_id) {
                     $results[] = ['status' => 'success', 'product_id' => $product_id, 'square_id' => $square_product['id'], 'message' => 'Product imported successfully'];
                 } else {
                     $results[] = ['status' => 'failed', 'product_id' => null, 'square_id' => $square_product['id'], 'message' => 'Failed to import product'];
@@ -44,13 +49,10 @@ class SquareImport extends SquareHelper
         return $results;
     }
 
-
-
-
     /**
      * Maps a Square product to a WooCommerce product format.
      *
-     * @param object $square_product The Square product to map.
+     * @param array $square_product The Square product to map.
      * @return array The WooCommerce product data.
      */
     private function map_square_product_to_woocommerce($square_product)
@@ -112,7 +114,6 @@ class SquareImport extends SquareHelper
         return $wc_product_data;
     }
 
-
     /**
      * Imports an image from a URL into the WordPress media library.
      *
@@ -155,7 +156,6 @@ class SquareImport extends SquareHelper
      * @param string $image_url The URL of the image to find.
      * @return int|null The ID of the existing image, or null if not found.
      */
-
     private function find_existing_image_id($square_image_id)
     {
         global $wpdb;
@@ -174,14 +174,13 @@ class SquareImport extends SquareHelper
         return $result ? intval($result) : null;
     }
 
-
-
-
     /**
-     * Creates or updates a WooCommerce product based on the provided product data.
+     * Creates or updates a WooCommerce product.
      *
      * @param array $wc_product_data The WooCommerce product data.
-     * @return int|bool The ID of the product if successful, or false on failure.
+     * @param array $data_to_import Data specifying what to import.
+     * @param bool $update_only Whether to only update existing products.
+     * @return int|false The product ID on success, or false on failure.
      */
     private function create_or_update_woocommerce_product($wc_product_data, $data_to_import, $update_only)
     {
@@ -394,7 +393,12 @@ class SquareImport extends SquareHelper
     }
 
 
-
+    /**
+     * Creates or retrieves a WooCommerce category.
+     *
+     * @param string $category_name The name of the category.
+     * @return int|false The category ID on success, or false on failure.
+     */
     private function get_or_create_category($category_name)
     {
         // Check if the category already exists

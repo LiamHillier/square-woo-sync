@@ -54,15 +54,7 @@ export function reformatDataForTable(inventory) {
           ? `$${minAmount}`
           : `$${minAmount} - $${maxAmount}`,
       categories: item.item_data?.category_name || "",
-      status:
-        (item.item_data?.variations?.length || 0) > 1
-          ? variations.some((vari) => vari.status) &&
-            !variations.every((vari) => vari.status)
-            ? "partial"
-            : variations.every((vari) => vari.status)
-            ? true
-            : false
-          : item.imported,
+      status: item.imported,
       ...(variations.length > 1 && { subRows: variations }),
     };
   });

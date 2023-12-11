@@ -1,61 +1,58 @@
-.toplevel_page_square-woo-sync #wpbody-content {
-  margin-top: 64px;
-  height: 100%;
-}
+/* Base styles for toplevel_page_square-woo-sync */
 .toplevel_page_square-woo-sync {
   .notice,
   #screen-meta {
     @apply max-w-7xl mx-auto;
   }
+
+  #wpbody-content {
+    margin-top: 64px;
+    height: 100%;
+    @apply bg-gray-100;
+  }
+
+  #wpfooter {
+    @apply hidden;
+  }
 }
+
+/* Base styles for wpcontent */
 #wpcontent {
   padding-left: 0 !important;
 }
 
+/* Styles for square-woo-sync */
 #square-woo-sync {
-  @apply bg-gray-100 max-w-7xl mx-auto h-full min-h-screen;
-  header {
+  @apply bg-gray-100 max-w-7xl mx-auto h-full min-h-screen px-5 pt-8;
+
+  .plugin-nav {
     width: calc(100% - 160px);
     @apply z-50 left-0;
     margin-left: 160px;
   }
 }
 
+/* Adjustments for smaller screens */
 @media (max-width: 960px) {
-  #square-woo-sync {
-    header {
-      width: calc(100% - 36px);
-    }
+  #square-woo-sync .plugin-nav {
+    width: calc(100% - 36px);
   }
 }
 
 @media (max-width: 982px) {
-  #square-woo-sync {
-    header {
-      width: 100%;
-      top: 46px;
-    }
+  #square-woo-sync .plugin-nav {
+    width: 100%;
+    top: 46px;
   }
 }
 
-.toplevel_page_square-woo-sync {
-  #wpbody-content {
-    @apply bg-gray-100;
-  }
-  .notice,
-  #screen-meta {
-    margin-top: 14px !important;
-  }
-
-  #wpfooter {
-    @apply hidden;
-  }
-
-  #wpbody-content {
-    @apply pb-0;
+@media (max-width: 1368px) {
+  .toplevel_page_square-woo-sync #wpbody-content {
+    @apply px-5;
   }
 }
 
+/* Additional styles */
 #adminmenu div.wp-menu-image {
   display: flex;
   justify-content: center;
@@ -67,8 +64,12 @@
   top: 8rem !important;
 }
 
-@media (max-width: 1368px) {
-  .toplevel_page_square-woo-sync #wpbody-content {
-    @apply px-5;
-  }
+.toplevel_page_square-woo-sync .notice,
+.toplevel_page_square-woo-sync #screen-meta,
+#wpbody-content {
+  margin-top: 14px !important;
+}
+
+#wpbody-content {
+  @apply pb-0;
 }
