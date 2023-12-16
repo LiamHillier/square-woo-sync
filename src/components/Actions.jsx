@@ -23,14 +23,6 @@ const actions = [
     link: "/inventory",
   },
   {
-    title: "Sync Woo to Square",
-    icon: CheckBadgeIcon,
-    iconForeground: "text-purple-700",
-    iconBackground: "bg-purple-50",
-    link: "/",
-  },
-
-  {
     title: "Documentation",
     icon: AcademicCapIcon,
     iconForeground: "text-sky-700",
@@ -42,7 +34,7 @@ const actions = [
 export default function Actions() {
   useMenuFix();
   return (
-    <div className="divide-y divide-gray-200 overflow-hidden rounded-lg bg-gray-200 shadow sm:grid sm:grid-cols-3 sm:gap-px sm:divide-y-0 relative">
+    <div className="divide-y divide-gray-200 overflow-hidden rounded-lg bg-gray-200 shadow sm:grid sm:grid-cols-2 sm:gap-px sm:divide-y-0 relative">
       {actions.map((action, actionIdx) => (
         <Link
           key={action.title}

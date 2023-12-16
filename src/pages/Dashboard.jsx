@@ -1,4 +1,5 @@
 import Actions from "../components/Actions";
+import Contact from "../components/features/dashboard/Contact";
 import SyncLog from "../components/features/dashboard/logs/SyncLog";
 import Stats from "../components/stats";
 const people = [
@@ -13,8 +14,8 @@ const people = [
 
 export default function Dashboard() {
   return (
-    <div className="">
-      <div className="bg-white shadow sm:rounded-lg mb-10">
+    <div className="grid grid-cols-12 gap-6">
+      <div className="bg-white shadow sm:rounded-lg col-span-8 row-span-1">
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-base font-semibold leading-6 text-gray-900">
             Your licence
@@ -64,9 +65,15 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      <Actions />
-      <SyncLog />
-      <div className="grid grid-cols-12 gap-6 mt-10 items-start"></div>
+      <div className="col-span-4 row-span-4">
+        <SyncLog />
+      </div>
+      <div className="col-span-8 row-span-1">
+        <Actions />
+      </div>
+      <div className="col-span-8 row-span-2">
+        <Contact />
+      </div>
     </div>
   );
 }
