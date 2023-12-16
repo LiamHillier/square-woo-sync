@@ -109,9 +109,9 @@ class SyncProduct
                 $result = $this->on_product_update($product_id, $data_to_import);
 
                 if ($result && $this->is_sync_successful($result)) {
-                    $logger->log('info', 'Successfully synced inventory: ' .  $product_id . ' to Square', array('product_id' => $product_id));
+                    $logger->log('success', 'Successfully synced inventory: ' .  $product->get_title() . ' to Square', array('product_id' => $product_id));
                 } else {
-                    $logger->log('error', 'Failed to sync inventory of product: ' . $product_id . ' with square', array('product_id' => $product_id));
+                    $logger->log('error', 'Failed to sync inventory of product: ' . $product->get_title() . ' with square', array('product_id' => $product_id));
                 }
             } else {
                 $logger->log('error', 'Invalid product or not managing stock', array('product_id' => null));
@@ -131,10 +131,10 @@ class SyncProduct
 
         $product_id = intval($_POST['product_id']);
 
-        $logger->log('info', 'Syncing product to Square', array('product_id' => $product_id));
+        $logger->log('info', 'Initiating product sync to Square', array('product_id' => $product_id));
 
         if ($product_id) {
-
+            $product = wc_get_product($product_id);
             $data_to_import = array(
                 'stock' => true,
                 'title' => true,
@@ -144,10 +144,10 @@ class SyncProduct
             );
             $result = $this->on_product_update($product_id, $data_to_import);
             if ($result && $this->is_sync_successful($result)) {
-                $logger->log('info', 'Successfully synced: ' .  $product_id . ' to Square', array('product_id' => $product_id));
+                $logger->log('success', 'Successfully synced: ' .  $product->get_title() . ' to Square', array('product_id' => $product_id));
                 wp_send_json_success(array('message' => 'Product synced successfully with Square.'));
             } else {
-                $logger->log('error', 'Failed to sync product: ' . $product_id, array(
+                $logger->log('error', 'Failed to sync product: ' . $product->get_title(), array(
                     'error_message' => $result['error'],
                     'product_id' => $product_id
                 ));

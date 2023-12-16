@@ -2,10 +2,17 @@ import { useEffect, useState, Fragment } from "@wordpress/element";
 import apiFetch from "@wordpress/api-fetch";
 import {
   ChatBubbleLeftEllipsisIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  InformationCircleIcon,
   TagIcon,
   UserCircleIcon,
 } from "@heroicons/react/20/solid";
 import { classNames } from "../../../../utils/classHelper";
+import {
+  ArrowPathIcon,
+  ArrowsRightLeftIcon,
+} from "@heroicons/react/24/outline";
 
 const activity = [
   {
@@ -72,143 +79,93 @@ const SyncLog = () => {
     }
   };
 
+  const isValid = (jsonString) => {
+    try {
+      JSON.parse(jsonString);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
   return (
     <>
       <div className="flow-root bg-white rounded-lg shadow p-5  float-right">
-        <h3 className="text-base font-semibold leading-6 text-gray-900 mb-10">
-          Sync log
+        <h3 className="text-base font-semibold text-gray-900 mb-6 flex justify-start items-center gap-2">
+          <ArrowsRightLeftIcon className="w-6 h-6" />
+          Sync Feed
+          <span className="text-xs text-gray-500 font-normal mt-[1px] -ml-1">
+            {" "}
+            - Shows last 50 logs
+          </span>
         </h3>
-        <ul role="list" className="-mb-8">
-          {activity.map((activityItem, activityItemIdx) => (
+        <ul role="list" className="max-h-screen overflow-auto">
+          {logs.reverse().map((activityItem, activityItemIdx) => (
             <li key={activityItem.id}>
-              <div className="relative pb-8">
-                {activityItemIdx !== activity.length - 1 ? (
+              <div className="relative pb-4">
+                {activityItemIdx !== logs.length - 1 ? (
                   <span
                     className="absolute left-5 top-5 -ml-px h-full w-0.5 bg-gray-200"
                     aria-hidden="true"
                   />
                 ) : null}
                 <div className="relative flex items-start space-x-3">
-                  {activityItem.type === "comment" ? (
-                    <>
-                      <div className="relative">
-                        <img
-                          className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-400 ring-8 ring-white"
-                          src={activityItem.imageUrl}
-                          alt=""
-                        />
-
-                        <span className="absolute -bottom-0.5 -right-1 rounded-tl bg-white px-0.5 py-px">
-                          <ChatBubbleLeftEllipsisIcon
-                            className="h-5 w-5 text-gray-400"
-                            aria-hidden="true"
-                          />
-                        </span>
+                  <>
+                    <div>
+                      <div className="relative px-1">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 ring-8 ring-white">
+                          {activityItem.log_level === "success" ? (
+                            <CheckCircleIcon
+                              className="h-5 w-5 text-green-500"
+                              aria-hidden="true"
+                            />
+                          ) : activityItem.log_level === "error" ? (
+                            <ExclamationCircleIcon
+                              className="h-5 w-5 text-red-500"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <InformationCircleIcon
+                              className="h-5 w-5 text-blue-500"
+                              aria-hidden="true"
+                            />
+                          )}
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div>
-                          <div className="text-sm">
+                    </div>
+                    <div className="min-w-0 flex-1 py-0">
+                      <div className="text-sm text-gray-500">
+                        <p className="whitespace-nowrap text-xs">
+                          {activityItem.timestamp}
+                        </p>
+                        <p className="mr-0.5">{activityItem.message}</p>
+                        {isValid(activityItem.context) &&
+                          JSON.parse(activityItem.context)["product_id"] &&
+                          activityItem.log_level === "success" && (
                             <a
-                              href={activityItem.person.href}
-                              className="font-medium text-gray-900"
+                              className="mr-0.5 text-xs mt-4 text-blue-600"
+                              href={`/wp-admin/post.php?post=${
+                                JSON.parse(activityItem.context)["product_id"]
+                              }&action=edit`}
+                              target="_blank"
                             >
-                              {activityItem.person.name}
+                              View product
                             </a>
-                          </div>
-                          <p className="mt-0.5 text-sm text-gray-500">
-                            Commented {activityItem.date}
-                          </p>
-                        </div>
-                        <div className="mt-2 text-sm text-gray-700">
-                          <p>{activityItem.comment}</p>
-                        </div>
+                          )}
+                        {isValid(activityItem.context) &&
+                          JSON.parse(activityItem.context)["error_message"] &&
+                          activityItem.log_level === "error" && (
+                            <p className="text-xs italic text-red-800">
+                              {
+                                JSON.parse(activityItem.context)[
+                                  "error_message"
+                                ]
+                              }
+                            </p>
+                          )}
                       </div>
-                    </>
-                  ) : activityItem.type === "assignment" ? (
-                    <>
-                      <div>
-                        <div className="relative px-1">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 ring-8 ring-white">
-                            <UserCircleIcon
-                              className="h-5 w-5 text-gray-500"
-                              aria-hidden="true"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1 py-1.5">
-                        <div className="text-sm text-gray-500">
-                          <a
-                            href={activityItem.person.href}
-                            className="font-medium text-gray-900"
-                          >
-                            {activityItem.person.name}
-                          </a>{" "}
-                          assigned{" "}
-                          <a
-                            href={activityItem.assigned.href}
-                            className="font-medium text-gray-900"
-                          >
-                            {activityItem.assigned.name}
-                          </a>{" "}
-                          <span className="whitespace-nowrap">
-                            {activityItem.date}
-                          </span>
-                        </div>
-                      </div>
-                    </>
-                  ) : activityItem.type === "tags" ? (
-                    <>
-                      <div>
-                        <div className="relative px-1">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 ring-8 ring-white">
-                            <TagIcon
-                              className="h-5 w-5 text-gray-500"
-                              aria-hidden="true"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1 py-0">
-                        <div className="text-sm leading-8 text-gray-500">
-                          <span className="mr-0.5">
-                            <a
-                              href={activityItem.person.href}
-                              className="font-medium text-gray-900"
-                            >
-                              {activityItem.person.name}
-                            </a>{" "}
-                            added tags
-                          </span>{" "}
-                          <span className="mr-0.5">
-                            {activityItem.tags.map((tag) => (
-                              <Fragment key={tag.name}>
-                                <a
-                                  href={tag.href}
-                                  className="inline-flex items-center gap-x-1.5 rounded-full px-2 py-1 text-xs font-medium text-gray-900 ring-1 ring-inset ring-gray-200"
-                                >
-                                  <svg
-                                    className={classNames(
-                                      tag.color,
-                                      "h-1.5 w-1.5"
-                                    )}
-                                    viewBox="0 0 6 6"
-                                    aria-hidden="true"
-                                  >
-                                    <circle cx={3} cy={3} r={3} />
-                                  </svg>
-                                  {tag.name}
-                                </a>{" "}
-                              </Fragment>
-                            ))}
-                          </span>
-                          <span className="whitespace-nowrap">
-                            {activityItem.date}
-                          </span>
-                        </div>
-                      </div>
-                    </>
-                  ) : null}
+                    </div>
+                  </>
                 </div>
               </div>
             </li>

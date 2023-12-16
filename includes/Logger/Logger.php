@@ -67,7 +67,7 @@ class Logger
                     'timestamp' => $log_entry['timestamp'],
                     'log_level' => $log_entry['level'],
                     'message'   => $log_entry['message'],
-                    'context'   => maybe_serialize($log_entry['context'])
+                    'context'   => json_encode($log_entry['context'])
                 ),
                 array('%s', '%s', '%s', '%s')
             );
