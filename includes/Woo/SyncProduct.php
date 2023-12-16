@@ -91,7 +91,7 @@ class SyncProduct
 
         $logger = new Logger();
 
-        $logger->log('info', 'Starting inventory sync to square');
+        $logger->log('info', 'Initiating inventory sync from woocommerce order to square');
 
         // Loop through order items
         foreach ($order->get_items() as $item_id => $item) {
@@ -111,7 +111,7 @@ class SyncProduct
                 if ($result && $this->is_sync_successful($result)) {
                     $logger->log('success', 'Successfully synced inventory: ' .  $product->get_title() . ' to Square', array('product_id' => $product_id));
                 } else {
-                    $logger->log('error', 'Failed to sync inventory of product: ' . $product->get_title() . ' with square', array('product_id' => $product_id));
+                    $logger->log('error', 'Failed to sync inventory of product: ' . $product->get_title() . ' with square', array('product_id' => $product_id, 'error_message' => $result['error']));
                 }
             } else {
                 $logger->log('error', 'Invalid product or not managing stock', array('product_id' => null));
