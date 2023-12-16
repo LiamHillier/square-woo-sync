@@ -39,6 +39,7 @@ class Api
             [
                 \Pixeldev\SWS\REST\SettingsController::class,
                 \Pixeldev\SWS\REST\SquareController::class,
+                \Pixeldev\SWS\REST\LogController::class,
             ]
         );
 

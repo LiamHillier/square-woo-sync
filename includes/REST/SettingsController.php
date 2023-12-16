@@ -155,10 +155,6 @@ class SettingsController extends RESTController
     }
 
 
-
-
-
-
     /**
      * Updates the plugin settings.
      *

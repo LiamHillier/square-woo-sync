@@ -62,8 +62,9 @@ const WooSquare = ({ settings, updateSettings, settingsLoading }) => {
         {wooSquare.isActive && !settingsLoading && (
           <>
             <p className="mt-4">
-              Stock/Inventory count is the the sole permitted auto-sync option
-              from Woo to Square. <a href="/">Learn why here</a>
+              Sync stock on order processing. Stock/Inventory count is the the
+              sole permitted auto-sync option from Woo to Square.{" "}
+              <a href="/">Learn why here</a>
             </p>
             <p>
               You can manually sync from the product actions. Learn how here

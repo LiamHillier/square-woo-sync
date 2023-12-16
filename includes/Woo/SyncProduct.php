@@ -2,6 +2,7 @@
 
 namespace Pixeldev\SWS\Woo;
 
+use Pixeldev\SWS\Logger\Logger;
 use Pixeldev\SWS\Square\SquareHelper;
 
 if (!defined('ABSPATH')) {
@@ -32,6 +33,9 @@ class SyncProduct
             add_action('admin_post_sync_to_square', array($this, 'handle_sync_to_square'));
             add_action('admin_footer', array($this, 'add_ajax_script'));
             add_action('wp_ajax_sync_to_square', array($this, 'handle_ajax_sync_to_square'));
+            // Sync Inventory on order
+            add_action('woocommerce_reduce_order_stock',  array($this, 'sync_inventory_after_product_sold'));
+            add_action('woocommerce_order_status_cancelled', array($this, 'sync_inventory_after_product_sold'));
         }
     }
 
@@ -69,22 +73,91 @@ class SyncProduct
     }
 
     /**
+     * Sync inventory between woocommerce and square on new order
+     * 
+     * @param array $result The result array.
+     */
+    public function sync_inventory_after_product_sold($order)
+    {
+        if (!is_a($order, 'WC_Order')) {
+            return;
+        }
+
+
+
+        $current_settings = get_option('wooAuto', []);
+
+        if (!isset($current_settings) && $current_settings['isActive'] !== true && $current_settings['stock'] !== true) return;
+
+        $logger = new Logger();
+
+        $logger->log('info', 'Starting inventory sync to square');
+
+        // Loop through order items
+        foreach ($order->get_items() as $item_id => $item) {
+            // Get the product
+            $product = $item->get_product();
+
+            if ($product && $product->managing_stock()) {
+                // Get the product ID
+                $product_id = $product->get_id();
+
+                $data_to_import = array(
+                    'stock' => true,
+                );
+
+                $result = $this->on_product_update($product_id, $data_to_import);
+
+                if ($result && $this->is_sync_successful($result)) {
+                    $logger->log('info', 'Successfully synced inventory: ' .  $product_id . ' to Square', array('product_id' => $product_id));
+                } else {
+                    $logger->log('error', 'Failed to sync inventory of product: ' . $product_id . ' with square', array('product_id' => $product_id));
+                }
+            } else {
+                $logger->log('error', 'Invalid product or not managing stock', array('product_id' => null));
+            }
+        }
+    }
+
+
+    /**
      * AJAX handler for syncing products to Square.
      */
     public function handle_ajax_sync_to_square()
     {
         check_ajax_referer('sws_ajax_nonce', 'nonce');
 
+        $logger = new Logger();
+
         $product_id = intval($_POST['product_id']);
+
+        $logger->log('info', 'Syncing product to Square', array('product_id' => $product_id));
+
         if ($product_id) {
-            $result = $this->on_product_update($product_id);
-            error_log(json_encode($result));
+
+            $data_to_import = array(
+                'stock' => true,
+                'title' => true,
+                'description' => true,
+                'price' => true,
+                'sku' => true,
+            );
+            $result = $this->on_product_update($product_id, $data_to_import);
             if ($result && $this->is_sync_successful($result)) {
+                $logger->log('info', 'Successfully synced: ' .  $product_id . ' to Square', array('product_id' => $product_id));
                 wp_send_json_success(array('message' => 'Product synced successfully with Square.'));
             } else {
+                $logger->log('error', 'Failed to sync product: ' . $product_id, array(
+                    'error_message' => $result['error'],
+                    'product_id' => $product_id
+                ));
                 wp_send_json_error(array('message' => $result['error']));
             }
         } else {
+            $logger->log('error', 'Failed to sync product, invalid product ID', array(
+                'error_message' => 'No product ID found',
+                'product_id' => null
+            ));
             wp_send_json_error(array('message' => 'Invalid product ID.'));
         }
     }
@@ -127,7 +200,7 @@ class SyncProduct
      * @param int $product_id The product ID.
      * @return mixed
      */
-    public function on_product_update($product_id)
+    public function on_product_update($product_id, $data_to_import)
     {
         $settings = get_option('sws_settings', []);
         if (empty($settings['wooAuto'])) {
@@ -143,7 +216,7 @@ class SyncProduct
         $woo_data = $this->get_woo_product_data($product, $square_product_id);
 
         if ($square_product_id && !empty($woo_data)) {
-            return $this->update_square_product($square_product_id, $woo_data);
+            return $this->update_square_product($square_product_id, $woo_data, $data_to_import);
         }
     }
 
@@ -203,7 +276,7 @@ class SyncProduct
      * @param array  $woo_data          WooCommerce product data.
      * @return mixed
      */
-    private function update_square_product($square_product_id, $woo_data)
+    private function update_square_product($square_product_id, $woo_data, $data_to_import)
     {
         $square_helper = new SquareHelper();
         $square_product_data = $square_helper->get_square_item_details($square_product_id);
@@ -213,7 +286,8 @@ class SyncProduct
                 $woo_data['variations'][0]['square_id'] = $square_product_data['object']['item_data']['variations'][0]['id'];
             }
 
-            $updated_response = $square_helper->update_square_product($woo_data, $square_product_data['object']);
+
+            $updated_response = $square_helper->update_square_product($woo_data, $square_product_data['object'], $data_to_import);
             return $updated_response;
         } else {
             return $square_product_data;

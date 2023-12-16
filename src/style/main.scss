@@ -1,6 +1,8 @@
 /* Base styles for toplevel_page_square-woo-sync */
 .toplevel_page_square-woo-sync {
-  .notice,
+  .wp-menu-image {
+    @apply text-white;
+  }
   #screen-meta {
     @apply max-w-7xl mx-auto;
   }

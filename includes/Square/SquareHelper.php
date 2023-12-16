@@ -167,22 +167,28 @@ class SquareHelper
      * @param array $square_data Data from Square product.
      * @return array Response array with status of inventory and product update.
      */
-    public function update_square_product($woo_data, $square_data)
+    public function update_square_product($woo_data, $square_data, $data_to_import)
     {
         $idempotency_key = uniqid('sq_', true);
 
         // Update product details
-        $square_data['item_data']['name'] = $woo_data['name'];
-        $square_data['item_data']['description'] = $woo_data['description'];
+        if (isset($data_to_import['title']) && $data_to_import['title'] === true) {
+            $square_data['item_data']['name'] = $woo_data['name'];
+        }
+        if (isset($data_to_import['description']) && $data_to_import['description'] === true) {
+            $square_data['item_data']['description'] = $woo_data['description'];
+        }
 
         // Update variations and inventory
-        $this->update_variations($square_data, $woo_data);
-        $inventory = $this->get_inventory($woo_data);
-        $inventory_update_status = null;
+        $this->update_variations($square_data, $woo_data, $data_to_import);
 
-        if (!empty($inventory['success']) && !empty($inventory['data'])) {
-            $updated_inventory_data = $this->updated_inventory_data($inventory['data']['counts'], $woo_data);
-            $inventory_update_status = $this->update_inventory($updated_inventory_data);
+        $inventory_update_status = null;
+        if (isset($data_to_import['stock']) && $data_to_import['stock'] === true) {
+            $inventory = $this->get_inventory($woo_data);
+            if (!empty($inventory['success']) && !empty($inventory['data'])) {
+                $updated_inventory_data = $this->updated_inventory_data($inventory['data']['counts'], $woo_data);
+                $inventory_update_status = $this->update_inventory($updated_inventory_data);
+            }
         }
 
         $body = [
@@ -203,7 +209,7 @@ class SquareHelper
      * @param array &$square_variations Variations from Square.
      * @param array $woo_variations Variations from WooCommerce.
      */
-    private function update_variable_product_variations(&$square_variations, $woo_variations)
+    private function update_variable_product_variations(&$square_variations, $woo_variations, $data_to_import)
     {
         if (empty($woo_variations)) {
             return;
@@ -212,7 +218,7 @@ class SquareHelper
         $woo_variation_map = array_column($woo_variations, null, 'square_id');
         foreach ($square_variations as &$variation) {
             if (isset($woo_variation_map[$variation['id']])) {
-                $this->update_simple_product_variation($variation, $woo_variation_map[$variation['id']]);
+                $this->update_simple_product_variation($variation, $woo_variation_map[$variation['id']], $data_to_import);
             }
         }
     }
@@ -255,9 +261,9 @@ class SquareHelper
      * @param array &$square_data Data from Square product.
      * @param array $woo_data     Data from WooCommerce product.
      */
-    private function update_variations(&$square_data, $woo_data)
+    private function update_variations(&$square_data, $woo_data, $data_to_import)
     {
-        $this->update_variable_product_variations($square_data['item_data']['variations'], $woo_data['variations']);
+        $this->update_variable_product_variations($square_data['item_data']['variations'], $woo_data['variations'], $data_to_import);
     }
 
     /**
@@ -266,10 +272,14 @@ class SquareHelper
      * @param array &$square_variation Variation data from Square.
      * @param array $woo_variation     Variation data from WooCommerce.
      */
-    private function update_simple_product_variation(&$square_variation, $woo_variation)
+    private function update_simple_product_variation(&$square_variation, $woo_variation, $data_to_import)
     {
-        $square_variation['item_variation_data']['price_money']['amount'] = floatval($woo_variation['price']) * 100;
-        $square_variation['item_variation_data']['sku'] = $woo_variation['sku'];
+        if (isset($data_to_import['price']) && $data_to_import['price'] === true) {
+            $square_variation['item_variation_data']['price_money']['amount'] = floatval($woo_variation['price']) * 100;
+        }
+        if (isset($data_to_import['sku']) && $data_to_import['sku'] === true) {
+            $square_variation['item_variation_data']['sku'] = $woo_variation['sku'];
+        }
     }
 
     /**
