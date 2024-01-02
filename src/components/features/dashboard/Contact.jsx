@@ -4,82 +4,41 @@ import {
   ComputerDesktopIcon,
 } from "@heroicons/react/24/outline";
 
+import supportImg from "../../../../assets/images/support.png";
+
 export default function Contact() {
   return (
-    <div className="isolate bg-white p-5 rounded-lg shadow">
-      <div className="">
-        <h3 className="text-base font-semibold leading-6 text-gray-900 ">
-          Support
-        </h3>
-        <p className="leading-8 text-gray-600">
-          Aute magna irure deserunt veniam aliqua magna enim voluptate.
-        </p>
-      </div>
-      <div className="mt-6 space-y-8">
-        <div className="flex gap-x-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-600">
-            <ChatBubbleLeftRightIcon
-              className="h-6 w-6 text-white"
-              aria-hidden="true"
-            />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold  text-gray-900">
-              Sales/License support
-            </h3>
-            <p className="  text-gray-600">
-              Ut cursus est ut amet. Lobortis eget egestas leo vitae eget
-              porttitor risus blandit. Nunc a in lorem vel iaculis porttitor.
+    <div className="isolate bg-white p-5 rounded-lg shadow relative overflow-hidden">
+      <img
+        src={supportImg}
+        className="w-full h-full object-contain absolute top-0 left-0 blur-sm"
+      />
+      <div className="absolute top-0 left-0 w-full h-full bg-white/50"></div>
+      <div className="h-[360px] relative z-10">
+        <div className="p-6 flex items-center justify-center h-full">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+              24/7 Customer Support
+            </h2>
+            <p className="mx-auto mt-6 max-w-xl text-lg leading-8 text-gray-600">
+              Access round-the-clock assistance from our dedicated support team.
+              Get help whenever you need it to ensure a smooth and successful
+              integration experience.
             </p>
-            <p className="mt-4">
-              <a href="#" className="text-sm font-semibold  text-indigo-600">
-                Contact us <span aria-hidden="true">&rarr;</span>
-              </a>
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-x-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-600">
-            <BugAntIcon className="h-6 w-6 text-white" aria-hidden="true" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold  text-gray-900">
-              Bug reports
-            </h3>
-            <p className="  text-gray-600">
-              Expedita qui non ut quia ipsum voluptatum ipsam pariatur. Culpa
-              vitae ipsum minus eius vero quo quibusdam.
-            </p>
-            <p className="mt-4">
+            <div className="mt-10 flex items-center justify-center gap-x-6">
               <a
                 href="#"
-                className="text-sm font-semibold leading-6 text-indigo-600"
+                className="rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
               >
-                Report a bug <span aria-hidden="true">&rarr;</span>
+                Get started
               </a>
-            </p>
-          </div>
-        </div>
-        <div className="flex gap-x-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-600">
-            <ComputerDesktopIcon
-              className="h-6 w-6 text-white"
-              aria-hidden="true"
-            />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold  text-gray-900">
-              Technical support
-            </h3>
-            <p className="  text-gray-600">
-              Sint aut modi porro consequatur architecto commodi qui
-              consequatur. Dignissimos adipisci minima.
-            </p>
-            <p className="mt-4">
-              <a href="#" className="text-sm font-semibold  text-indigo-600">
-                Join our Discord <span aria-hidden="true">&rarr;</span>
+              <a
+                href="#"
+                className="text-sm font-semibold leading-6 text-gray-900"
+              >
+                Learn more <span aria-hidden="true">→</span>
               </a>
-            </p>
+            </div>
           </div>
         </div>
       </div>

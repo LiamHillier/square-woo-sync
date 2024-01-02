@@ -18,8 +18,11 @@ const Webhook = () => {
 
   return (
     <div className="px-4 py-5 sm:p-6">
-      <h3 className="text-base font-semibold leading-6 text-gray-900">
-        Webhook URL
+      <h3 className="text-base font-semibold leading-6 text-gray-900 relative inline-block">
+        Webhook URL{" "}
+        <span className="left-[80%] absolute inline-flex items-center rounded-md bg-purple-50 px-1.5 py-0.5 text-xs font-medium text-purple-700 ring-1 ring-inset ring-purple-700/10 whitespace-nowrap -top-4 rotate-12">
+          PREMIUM ONLY
+        </span>
       </h3>
       <div className="mt-2 max-w-xl text-sm text-gray-500">
         <p>
@@ -33,14 +36,14 @@ const Webhook = () => {
           </a>
         </p>
       </div>
-      <div className="max-w-xl flex items-center mt-4">
+      <div className="max-w-xl flex items-center mt-4 blur">
         <input
           disabled
           id="webhookURL"
           ref={textRef}
           name="webhookURL"
           className="block disabled:text-gray-700 w-full !rounded-lg !border-0 !py-1.5 text-gray-900 !ring-1 !ring-inset !ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm !px-4 !leading-6"
-          value={`https://${getCurrentDomain()}/wp-json/sws/v1/square-inventory/update`}
+          value={`https://${getCurrentDomain()}`}
         />
         <button
           type="button"
