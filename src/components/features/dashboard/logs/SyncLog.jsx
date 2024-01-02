@@ -50,7 +50,7 @@ const SyncLog = () => {
 
   return (
     <>
-      <div className="flow-root bg-white rounded-lg shadow p-5  float-right w-full">
+      <div className="flow-root bg-white rounded-lg shadow p-5  float-right w-full  ">
         <h3 className="text-base font-semibold text-gray-900 mb-6 flex justify-start items-center gap-2">
           <ArrowsRightLeftIcon className="w-6 h-6" />
           Sync Feed

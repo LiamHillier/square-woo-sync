@@ -33,9 +33,6 @@ class SyncProduct
             add_action('admin_post_sync_to_square', array($this, 'handle_sync_to_square'));
             add_action('admin_footer', array($this, 'add_ajax_script'));
             add_action('wp_ajax_sync_to_square', array($this, 'handle_ajax_sync_to_square'));
-            // Sync Inventory on order
-            add_action('woocommerce_reduce_order_stock',  array($this, 'sync_inventory_after_product_sold'));
-            add_action('woocommerce_order_status_cancelled', array($this, 'sync_inventory_after_product_sold'));
         }
     }
 
@@ -70,53 +67,6 @@ class SyncProduct
             'ajaxurl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('sws_ajax_nonce'),
         ));
-    }
-
-    /**
-     * Sync inventory between woocommerce and square on new order
-     * 
-     * @param array $result The result array.
-     */
-    public function sync_inventory_after_product_sold($order)
-    {
-        if (!is_a($order, 'WC_Order')) {
-            return;
-        }
-
-
-
-        $current_settings = get_option('wooAuto', []);
-
-        if (!isset($current_settings) && $current_settings['isActive'] !== true && $current_settings['stock'] !== true) return;
-
-        $logger = new Logger();
-
-        $logger->log('info', 'Initiating inventory sync from woocommerce order to square');
-
-        // Loop through order items
-        foreach ($order->get_items() as $item_id => $item) {
-            // Get the product
-            $product = $item->get_product();
-
-            if ($product && $product->managing_stock()) {
-                // Get the product ID
-                $product_id = $product->get_id();
-
-                $data_to_import = array(
-                    'stock' => true,
-                );
-
-                $result = $this->on_product_update($product_id, $data_to_import);
-
-                if ($result && $this->is_sync_successful($result)) {
-                    $logger->log('success', 'Successfully synced inventory: ' .  $product->get_title() . ' to Square', array('product_id' => $product_id));
-                } else {
-                    $logger->log('error', 'Failed to sync inventory of product: ' . $product->get_title() . ' with square', array('product_id' => $product_id, 'error_message' => $result['error']));
-                }
-            } else {
-                $logger->log('error', 'Invalid product or not managing stock', array('product_id' => null));
-            }
-        }
     }
 
 
