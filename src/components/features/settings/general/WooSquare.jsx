@@ -63,7 +63,7 @@ const WooSquare = ({ settings, updateSettings, settingsLoading }) => {
         </ul>
         {showProMsg && (
           <p className="text-red-500 mt-2">
-            This feature is only avaiable to premium subscribers
+            This feature is only avaiable to PRO subscribers
           </p>
         )}
       </div>

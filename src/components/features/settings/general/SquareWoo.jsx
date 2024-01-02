@@ -48,7 +48,7 @@ const SquareWoo = ({ settings, updateSettings, settingsLoading }) => {
       <h3 className="text-base font-semibold leading-6 text-gray-900 relative inline-block">
         Automatic Syncing{" "}
         <span className="left-[80%] absolute inline-flex items-center rounded-md bg-purple-50 px-1.5 py-0.5 text-xs font-medium text-purple-700 ring-1 ring-inset ring-purple-700/10 whitespace-nowrap -top-4 rotate-12">
-          PREMIUM ONLY
+          PRO ONLY
         </span>
       </h3>
       <div className="mt-2 max-w-xl text-sm text-gray-500 mb-4">
@@ -92,7 +92,7 @@ const SquareWoo = ({ settings, updateSettings, settingsLoading }) => {
         </>
         {showProMsg && (
           <p className="text-red-500 mt-2">
-            This feature is only avaiable to premium subscribers
+            This feature is only avaiable to PRO subscribers
           </p>
         )}
       </div>
