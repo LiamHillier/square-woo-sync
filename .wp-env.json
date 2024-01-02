@@ -1,7 +1,7 @@
 {
   "plugins": [
     ".",
-    "https://downloads.wordpress.org/plugin/woocommerce.8.3.1.zip"
+    "https://downloads.wordpress.org/plugin/woocommerce.8.4.0.zip"
   ],
   "port": 1000,
   "testsPort": 1001,
